@@ -94,7 +94,7 @@ describe("parseRememberCommand", () => {
 
   it("dedups identical notes to the same key, differs for different notes", () => {
     const a = memoryKeyForNote("Me llamo Alex");
-    const b = memoryKeyForNote("me   llamo gerard "); // whitespace/case-insensitive
+    const b = memoryKeyForNote("me   llamo alex "); // whitespace/case-insensitive
     const c = memoryKeyForNote("soy de Madrid");
     expect(a).toBe(b);
     expect(a).not.toBe(c);
