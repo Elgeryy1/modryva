@@ -1,0 +1,75 @@
+name: 🐛 Reporte de bug
+description: Algo no funciona como debería
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por tomarte el tiempo de reportar un bug 🙏
+        Cuanto más claro sea, antes lo podremos arreglar.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: ¿Qué ocurrió?
+      description: Describe el problema con claridad.
+      placeholder: Al ejecutar X, ocurrió Y en lugar de Z…
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Pasos para reproducir
+      value: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamiento esperado
+      description: ¿Qué esperabas que pasara?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área afectada
+      options:
+        - Bot / moderación
+        - Guardian / verificación
+        - Juegos / casino
+        - IA
+        - Mini App / web
+        - API / worker
+        - Datos / Prisma
+        - Otro / no estoy seguro
+    validations:
+      required: false
+  - type: textarea
+    id: env
+    attributes:
+      label: Entorno
+      value: |
+        - Node:
+        - pnpm:
+        - SO:
+        - Despliegue (Docker / local):
+        - Commit o versión:
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs relevantes
+      description: "Pega logs o la traza del error. ⚠️ Redacta cualquier secreto/token/PII antes de pegar."
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Verificaciones
+      options:
+        - label: He buscado y no encontré un issue duplicado.
+          required: true
+        - label: He quitado cualquier secreto, token o dato personal de logs y capturas.
+          required: true

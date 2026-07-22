@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Preguntas y discusión
+    url: https://github.com/Elgeryy1/modryva/discussions
+    about: Para dudas, ideas y conversación general (esto no es para bugs).
+  - name: 🔐 Reportar una vulnerabilidad
+    url: https://github.com/Elgeryy1/modryva/security/advisories/new
+    about: Reporta problemas de seguridad de forma privada, nunca en un issue público.

@@ -1,0 +1,50 @@
+name: 💡 Propuesta de función
+description: Sugiere una idea o mejora para Modryva
+title: "[Idea]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ¡Gracias por ayudar a que Modryva sea mejor! ✨
+  - type: textarea
+    id: problem
+    attributes:
+      label: ¿Qué problema resuelve?
+      description: ¿Qué te frustra hoy o qué te gustaría poder hacer?
+      placeholder: Como administrador, me gustaría poder…
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Propuesta
+      description: Describe la solución que imaginas.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+      description: ¿Hay otras formas de resolverlo? ¿Algún *workaround* actual?
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Bot / moderación
+        - Guardian / verificación
+        - Juegos / casino
+        - IA
+        - Mini App / web
+        - Plataforma / sub-bots
+        - Otro
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Verificaciones
+      options:
+        - label: He buscado y no encontré una propuesta duplicada.
+          required: true
