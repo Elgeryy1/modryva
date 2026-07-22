@@ -1,0 +1,23 @@
+{
+  "nodes": [
+    { "id": "tg", "type": "text", "text": "## Telegram\nUpdate entrante", "x": -560, "y": 0, "width": 200, "height": 90, "color": "5" },
+    { "id": "poller", "type": "file", "file": "04 Bot Core/Poller.md", "x": -280, "y": -10, "width": 240, "height": 110, "color": "5" },
+    { "id": "pipeline", "type": "file", "file": "04 Bot Core/Bot Pipeline.md", "x": 40, "y": -10, "width": 240, "height": 110, "color": "5" },
+    { "id": "bus", "type": "file", "file": "04 Bot Core/Bot Update Service.md", "x": 360, "y": -10, "width": 260, "height": 110, "color": "5" },
+    { "id": "handlers", "type": "file", "file": "04 Bot Core/Core Handlers.md", "x": 360, "y": 160, "width": 260, "height": 110, "color": "5" },
+    { "id": "msg", "type": "file", "file": "07 Events/Evento message.md", "x": 40, "y": 200, "width": 240, "height": 110, "color": "3" },
+    { "id": "cbq", "type": "file", "file": "07 Events/Evento callback_query.md", "x": 40, "y": 360, "width": 240, "height": 110, "color": "3" },
+    { "id": "cmds", "type": "file", "file": "06 Commands/Commands Overview.md", "x": 700, "y": 60, "width": 240, "height": 110, "color": "3" },
+    { "id": "delivery", "type": "file", "file": "04 Bot Core/Delivery.md", "x": 700, "y": -120, "width": 240, "height": 110, "color": "5" }
+  ],
+  "edges": [
+    { "id": "e1", "fromNode": "tg", "fromSide": "right", "toNode": "poller", "toSide": "left" },
+    { "id": "e2", "fromNode": "poller", "fromSide": "right", "toNode": "pipeline", "toSide": "left" },
+    { "id": "e3", "fromNode": "pipeline", "fromSide": "right", "toNode": "bus", "toSide": "left" },
+    { "id": "e4", "fromNode": "msg", "fromSide": "top", "toNode": "pipeline", "toSide": "bottom" },
+    { "id": "e5", "fromNode": "cbq", "fromSide": "right", "toNode": "bus", "toSide": "bottom" },
+    { "id": "e6", "fromNode": "bus", "fromSide": "bottom", "toNode": "handlers", "toSide": "top" },
+    { "id": "e7", "fromNode": "bus", "fromSide": "right", "toNode": "cmds", "toSide": "left" },
+    { "id": "e8", "fromNode": "bus", "fromSide": "top", "toNode": "delivery", "toSide": "left" }
+  ]
+}

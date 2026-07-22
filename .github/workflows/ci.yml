@@ -1,0 +1,115 @@
+name: ci
+
+# Antes disparaba solo en `main`, una rama que NO EXISTE en este repo (las reales son
+# `master` y `feature/**`). Resultado: el workflow estaba escrito pero no se había
+# ejecutado NUNCA. Verificado el 2026-07-20 — ver docs/PLAN-ENDURECIMIENTO-2026-07-20.md §1.1.
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - main # por si se renombra la rama por defecto en el futuro
+      - "feature/**"
+      - "compat/**"
+
+# Un push nuevo sobre la misma rama cancela el run anterior: evita quemar minutos
+# revisando commits ya superados.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://superbot:superbot@127.0.0.1:5432/superbot?schema=public
+      REDIS_URL: redis://127.0.0.1:6379
+      TELEGRAM_BOT_TOKEN: test-token
+      TELEGRAM_WEBHOOK_SECRET: test-secret
+      TELEGRAM_APP_URL: http://localhost:3003
+      SESSION_SECRET: test-session-secret
+      NODE_ENV: test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: superbot
+          POSTGRES_PASSWORD: superbot
+          POSTGRES_DB: superbot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U superbot -d superbot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      # El servicio postgres de este workflow existía desde el principio y NADIE
+      # se conectaba a él: no había un solo test de integración. Los pasos de
+      # abajo lo aprovechan.
+
+      # Impide que vuelva a ocurrir el drift de `db push`. `migrate diff` sale
+      # con código 2 si el schema declara algo que las migraciones no crean, así
+      # que tocar schema.prisma sin añadir su migración rompe el CI.
+      # Contexto: el 2026-07-20 había 21 tablas declaradas y no migradas, y
+      # `migrate deploy` sobre una base limpia daba un esquema INCOMPLETO.
+      - name: Migrations cover the schema (no db-push drift)
+        env:
+          SHADOW_DATABASE_URL: postgresql://superbot:superbot@127.0.0.1:5432/shadow
+        run: |
+          PGPASSWORD=superbot psql -h 127.0.0.1 -U superbot -d superbot \
+            -c 'CREATE DATABASE shadow;'
+          pnpm db:drift-check
+
+      # Prueba que el esquema se reconstruye ENTERO desde cero. Es el criterio de
+      # recuperación ante desastre: sin esto, un backup restaurado sobre un
+      # esquema incompleto no devuelve el servicio.
+      - name: Schema rebuilds from scratch
+        run: pnpm db:deploy
+
+      # Los tests de integración corren contra Postgres REAL. Cubren lo que los
+      # fakes en memoria no pueden: transacciones, constraints únicos y alcance
+      # entre tenants.
+      - name: Integration tests (real Postgres)
+        env:
+          TEST_DATABASE_URL: postgresql://superbot:superbot@127.0.0.1:5432/superbot?schema=public
+        run: pnpm test:integration
+
+      - name: Build
+        run: pnpm build

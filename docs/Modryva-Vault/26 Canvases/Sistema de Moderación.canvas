@@ -1,0 +1,29 @@
+{
+  "nodes": [
+    { "id": "map", "type": "file", "file": "25 Maps/Security Map.md", "x": 300, "y": -300, "width": 300, "height": 110, "color": "1" },
+    { "id": "mod", "type": "file", "file": "12 Security/Módulo security.md", "x": 300, "y": -120, "width": 300, "height": 110, "color": "1" },
+    { "id": "antiflood", "type": "file", "file": "12 Security/Antiflood.md", "x": -80, "y": 60, "width": 240, "height": 100, "color": "1" },
+    { "id": "antiraid", "type": "file", "file": "12 Security/Antiraid.md", "x": 200, "y": 60, "width": 240, "height": 100, "color": "1" },
+    { "id": "captcha", "type": "file", "file": "12 Security/Captcha.md", "x": 480, "y": 60, "width": 240, "height": 100, "color": "1" },
+    { "id": "blocklists", "type": "file", "file": "12 Security/Blocklists.md", "x": 760, "y": 60, "width": 240, "height": 100, "color": "1" },
+    { "id": "locks", "type": "file", "file": "12 Security/Content Locks.md", "x": -80, "y": 220, "width": 240, "height": 100, "color": "1" },
+    { "id": "chars", "type": "file", "file": "12 Security/Char Filters.md", "x": 200, "y": 220, "width": 240, "height": 100, "color": "1" },
+    { "id": "admin", "type": "file", "file": "12 Security/Admin Tools.md", "x": 480, "y": 220, "width": 240, "height": 100, "color": "1" },
+    { "id": "breaker", "type": "file", "file": "12 Security/Circuit Breaker.md", "x": 760, "y": 220, "width": 240, "height": 100, "color": "1" },
+    { "id": "ban", "type": "file", "file": "06 Commands/Comando ban.md", "x": 200, "y": 400, "width": 240, "height": 100, "color": "3" },
+    { "id": "risk", "type": "file", "file": "21 Risks and Debt/Riesgo God Object bot-update.md", "x": 480, "y": 400, "width": 260, "height": 100, "color": "6" }
+  ],
+  "edges": [
+    { "id": "e1", "fromNode": "map", "fromSide": "bottom", "toNode": "mod", "toSide": "top" },
+    { "id": "e2", "fromNode": "mod", "fromSide": "bottom", "toNode": "antiflood", "toSide": "top" },
+    { "id": "e3", "fromNode": "mod", "fromSide": "bottom", "toNode": "antiraid", "toSide": "top" },
+    { "id": "e4", "fromNode": "mod", "fromSide": "bottom", "toNode": "captcha", "toSide": "top" },
+    { "id": "e5", "fromNode": "mod", "fromSide": "bottom", "toNode": "blocklists", "toSide": "top" },
+    { "id": "e6", "fromNode": "antiflood", "fromSide": "bottom", "toNode": "locks", "toSide": "top" },
+    { "id": "e7", "fromNode": "antiraid", "fromSide": "bottom", "toNode": "chars", "toSide": "top" },
+    { "id": "e8", "fromNode": "captcha", "fromSide": "bottom", "toNode": "admin", "toSide": "top" },
+    { "id": "e9", "fromNode": "blocklists", "fromSide": "bottom", "toNode": "breaker", "toSide": "top" },
+    { "id": "e10", "fromNode": "admin", "fromSide": "bottom", "toNode": "ban", "toSide": "top" },
+    { "id": "e11", "fromNode": "ban", "fromSide": "right", "toNode": "risk", "toSide": "left" }
+  ]
+}

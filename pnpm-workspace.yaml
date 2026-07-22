@@ -1,0 +1,29 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "modules/*"
+
+strictDepBuilds: false
+verifyDepsBeforeRun: false
+storeDir: "${TEMP}/pnpm-ultrabot-store"
+packageImportMethod: copy
+nodeLinker: hoisted
+confirmModulesPurge: false
+childConcurrency: 1
+networkConcurrency: 1
+
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - "@prisma/engines"
+  - "esbuild"
+  - "msgpackr-extract"
+  - "prisma"
+  - "sharp"
+
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  esbuild: true
+  msgpackr-extract: true
+  prisma: true
+  sharp: true

@@ -1,0 +1,48 @@
+{
+  "nodes": [
+    { "id": "title", "type": "text", "text": "# Arquitectura del Monorepo\npnpm workspaces + Turborepo. Las **apps** (arriba) consumen **packages** compartidos (medio) y orquestan la lógica de los **módulos** (abajo). La dependencia fluye hacia abajo: nada en packages/ conoce a las apps.", "x": -60, "y": -420, "width": 900, "height": 140, "color": "6" },
+
+    { "id": "app-bot", "type": "file", "file": "03 Architecture/App bot.md", "x": -60, "y": -220, "width": 260, "height": 110, "color": "5" },
+    { "id": "app-api", "type": "file", "file": "03 Architecture/App api.md", "x": 240, "y": -220, "width": 260, "height": 110, "color": "5" },
+    { "id": "app-web", "type": "file", "file": "03 Architecture/App web.md", "x": 540, "y": -220, "width": 260, "height": 110, "color": "5" },
+    { "id": "app-worker", "type": "file", "file": "03 Architecture/App worker.md", "x": 840, "y": -220, "width": 260, "height": 110, "color": "5" },
+
+    { "id": "pkg-domain", "type": "file", "file": "03 Architecture/Package domain.md", "x": -120, "y": 20, "width": 230, "height": 100, "color": "4" },
+    { "id": "pkg-telegram", "type": "file", "file": "03 Architecture/Package telegram.md", "x": 130, "y": 20, "width": 230, "height": 100, "color": "4" },
+    { "id": "pkg-data", "type": "file", "file": "03 Architecture/Package data.md", "x": 380, "y": 20, "width": 230, "height": 100, "color": "4" },
+    { "id": "pkg-shared", "type": "file", "file": "03 Architecture/Package shared.md", "x": 630, "y": 20, "width": 230, "height": 100, "color": "4" },
+    { "id": "pkg-auth", "type": "file", "file": "03 Architecture/Package auth.md", "x": 880, "y": 20, "width": 230, "height": 100, "color": "4" },
+
+    { "id": "modules-hub", "type": "file", "file": "25 Maps/Modules Map.md", "x": 380, "y": 220, "width": 230, "height": 90, "color": "3" },
+
+    { "id": "m-community", "type": "file", "file": "05 Modules/Community/Módulo community.md", "x": -160, "y": 380, "width": 200, "height": 80, "color": "3" },
+    { "id": "m-security", "type": "file", "file": "12 Security/Módulo security.md", "x": 60, "y": 380, "width": 200, "height": 80, "color": "1" },
+    { "id": "m-games", "type": "file", "file": "05 Modules/Games/Módulo games.md", "x": 280, "y": 380, "width": 200, "height": 80, "color": "6" },
+    { "id": "m-core", "type": "file", "file": "05 Modules/Core/Módulo core.md", "x": 500, "y": 380, "width": 200, "height": 80, "color": "3" },
+    { "id": "m-ai", "type": "file", "file": "05 Modules/AI/Módulo ai.md", "x": 720, "y": 380, "width": 200, "height": 80, "color": "2" },
+    { "id": "m-payments", "type": "file", "file": "05 Modules/Payments/Módulo payments.md", "x": 940, "y": 380, "width": 200, "height": 80, "color": "4" },
+
+    { "id": "m-automation", "type": "file", "file": "05 Modules/Automation/Módulo automation.md", "x": 60, "y": 490, "width": 200, "height": 80, "color": "3" },
+    { "id": "m-files", "type": "file", "file": "05 Modules/Files/Módulo files.md", "x": 280, "y": 490, "width": 200, "height": 80, "color": "3" },
+    { "id": "m-support", "type": "file", "file": "05 Modules/Support/Módulo support.md", "x": 500, "y": 490, "width": 200, "height": 80, "color": "3" },
+
+    { "id": "note-modcount", "type": "text", "text": "**11 módulos activos** según `core-handlers.ts:213`. En disco hay 9 carpetas `module-*`; la diferencia (agrupación / lógica pura sin carpeta propia) es una pregunta abierta → ver `Open Questions`.", "x": 760, "y": 490, "width": 380, "height": 110, "color": "1" }
+  ],
+  "edges": [
+    { "id": "a1", "fromNode": "app-bot", "fromSide": "bottom", "toNode": "pkg-telegram", "toSide": "top", "label": "usa" },
+    { "id": "a2", "fromNode": "app-bot", "fromSide": "bottom", "toNode": "pkg-domain", "toSide": "top" },
+    { "id": "a3", "fromNode": "app-bot", "fromSide": "bottom", "toNode": "pkg-data", "toSide": "top" },
+    { "id": "a4", "fromNode": "app-api", "fromSide": "bottom", "toNode": "pkg-auth", "toSide": "top" },
+    { "id": "a5", "fromNode": "app-api", "fromSide": "bottom", "toNode": "pkg-data", "toSide": "top" },
+    { "id": "a6", "fromNode": "app-web", "fromSide": "bottom", "toNode": "pkg-auth", "toSide": "top", "label": "initData" },
+    { "id": "a7", "fromNode": "app-worker", "fromSide": "bottom", "toNode": "pkg-data", "toSide": "top" },
+    { "id": "a8", "fromNode": "app-bot", "fromSide": "bottom", "toNode": "pkg-shared", "toSide": "top" },
+    { "id": "m0", "fromNode": "pkg-domain", "fromSide": "bottom", "toNode": "modules-hub", "toSide": "top", "label": "aloja la lógica" },
+    { "id": "m1", "fromNode": "modules-hub", "fromSide": "bottom", "toNode": "m-community", "toSide": "top" },
+    { "id": "m2", "fromNode": "modules-hub", "fromSide": "bottom", "toNode": "m-security", "toSide": "top" },
+    { "id": "m3", "fromNode": "modules-hub", "fromSide": "bottom", "toNode": "m-games", "toSide": "top" },
+    { "id": "m4", "fromNode": "modules-hub", "fromSide": "bottom", "toNode": "m-core", "toSide": "top" },
+    { "id": "m5", "fromNode": "modules-hub", "fromSide": "bottom", "toNode": "m-ai", "toSide": "top" },
+    { "id": "m6", "fromNode": "modules-hub", "fromSide": "bottom", "toNode": "m-payments", "toSide": "top" }
+  ]
+}

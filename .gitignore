@@ -1,0 +1,16 @@
+node_modules
+.next
+dist
+coverage
+.turbo
+.pnpm-store
+*.log
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.claude/scheduled_tasks.lock
+
+# Guardian Verification local media (local storage driver dev default) —
+# never commit captured face/gesture video, even in a test-mode run.
+/data/guardian-media

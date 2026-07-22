@@ -1,0 +1,38 @@
+{
+  "nodes": [
+    { "id": "home", "type": "file", "file": "01 Home/Modryva Home.md", "x": 400, "y": -460, "width": 360, "height": 130, "color": "6" },
+    { "id": "product", "type": "file", "file": "25 Maps/Product Map.md", "x": -40, "y": -180, "width": 300, "height": 110, "color": "2" },
+    { "id": "arch", "type": "file", "file": "25 Maps/Architecture Map.md", "x": 320, "y": -180, "width": 300, "height": 110, "color": "5" },
+    { "id": "botcore", "type": "file", "file": "25 Maps/Bot Core Map.md", "x": 680, "y": -180, "width": 300, "height": 110, "color": "5" },
+    { "id": "modules", "type": "file", "file": "25 Maps/Modules Map.md", "x": 1040, "y": -180, "width": 300, "height": 110, "color": "5" },
+    { "id": "commands", "type": "file", "file": "25 Maps/Commands Map.md", "x": -40, "y": 20, "width": 300, "height": 110, "color": "3" },
+    { "id": "database", "type": "file", "file": "25 Maps/Database Map.md", "x": 320, "y": 20, "width": 300, "height": 110, "color": "4" },
+    { "id": "api", "type": "file", "file": "25 Maps/API Map.md", "x": 680, "y": 20, "width": 300, "height": 110, "color": "4" },
+    { "id": "security", "type": "file", "file": "25 Maps/Security Map.md", "x": 1040, "y": 20, "width": 300, "height": 110, "color": "1" },
+    { "id": "casino", "type": "file", "file": "25 Maps/Casino Map.md", "x": -40, "y": 220, "width": 300, "height": 110, "color": "6" },
+    { "id": "hub", "type": "file", "file": "25 Maps/Modryva Hub Map.md", "x": 320, "y": 220, "width": 300, "height": 110, "color": "6" },
+    { "id": "infra", "type": "file", "file": "25 Maps/Infrastructure Map.md", "x": 680, "y": 220, "width": 300, "height": 110, "color": "2" },
+    { "id": "roadmap", "type": "file", "file": "25 Maps/Roadmap Map.md", "x": 1040, "y": 220, "width": 300, "height": 110, "color": "3" },
+    { "id": "risks", "type": "file", "file": "25 Maps/Risks and Technical Debt Map.md", "x": 500, "y": 420, "width": 300, "height": 110, "color": "1" }
+  ],
+  "edges": [
+    { "id": "e1", "fromNode": "home", "fromSide": "bottom", "toNode": "product", "toSide": "top" },
+    { "id": "e2", "fromNode": "home", "fromSide": "bottom", "toNode": "arch", "toSide": "top" },
+    { "id": "e3", "fromNode": "home", "fromSide": "bottom", "toNode": "botcore", "toSide": "top" },
+    { "id": "e4", "fromNode": "home", "fromSide": "bottom", "toNode": "modules", "toSide": "top" },
+    { "id": "e5", "fromNode": "arch", "fromSide": "bottom", "toNode": "botcore", "toSide": "top" },
+    { "id": "e6", "fromNode": "botcore", "fromSide": "bottom", "toNode": "commands", "toSide": "top" },
+    { "id": "e7", "fromNode": "modules", "fromSide": "bottom", "toNode": "security", "toSide": "top" },
+    { "id": "e8", "fromNode": "modules", "fromSide": "bottom", "toNode": "casino", "toSide": "top" },
+    { "id": "e9", "fromNode": "arch", "fromSide": "bottom", "toNode": "database", "toSide": "top" },
+    { "id": "e10", "fromNode": "arch", "fromSide": "bottom", "toNode": "api", "toSide": "top" },
+    { "id": "e11", "fromNode": "product", "fromSide": "bottom", "toNode": "casino", "toSide": "top" },
+    { "id": "e12", "fromNode": "product", "fromSide": "bottom", "toNode": "hub", "toSide": "top" },
+    { "id": "e13", "fromNode": "database", "fromSide": "bottom", "toNode": "security", "toSide": "top" },
+    { "id": "e14", "fromNode": "arch", "fromSide": "bottom", "toNode": "infra", "toSide": "top" },
+    { "id": "e15", "fromNode": "home", "fromSide": "bottom", "toNode": "roadmap", "toSide": "top" },
+    { "id": "e16", "fromNode": "security", "fromSide": "bottom", "toNode": "risks", "toSide": "right" },
+    { "id": "e17", "fromNode": "botcore", "fromSide": "bottom", "toNode": "risks", "toSide": "top" },
+    { "id": "e18", "fromNode": "roadmap", "fromSide": "bottom", "toNode": "risks", "toSide": "right" }
+  ]
+}

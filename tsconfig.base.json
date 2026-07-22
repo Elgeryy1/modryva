@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@superbot/shared": ["packages/shared/src/index.ts"],
+      "@superbot/domain": ["packages/domain/src/index.ts"],
+      "@superbot/telegram": ["packages/telegram/src/index.ts"],
+      "@superbot/auth": ["packages/auth/src/index.ts"],
+      "@superbot/data": ["packages/data/src/index.ts"],
+      "@superbot/module-core": ["modules/core/src/index.ts"],
+      "@superbot/module-security": ["modules/security/src/index.ts"],
+      "@superbot/module-guardian": ["modules/guardian/src/index.ts"],
+      "@superbot/module-community": ["modules/community/src/index.ts"],
+      "@superbot/module-support": ["modules/support/src/index.ts"],
+      "@superbot/module-automation": ["modules/automation/src/index.ts"],
+      "@superbot/module-files": ["modules/files/src/index.ts"],
+      "@superbot/module-games": ["modules/games/src/index.ts"],
+      "@superbot/module-ai": ["modules/ai/src/index.ts"],
+      "@superbot/module-payments": ["modules/payments/src/index.ts"]
+    },
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "useDefineForClassFields": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "declaration": true,
+    "declarationMap": true
+  }
+}

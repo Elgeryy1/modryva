@@ -1,0 +1,231 @@
+
+===== eca__eca-engine.json (eca-engine) =====
+model EcaRule {
+  id          String   @id @default(cuid())
+  tenantId    String
+  chatId      String?
+  event       String
+  conditions  Json
+  action      Json
+  enabled     Boolean  @default(true)
+  cooldownMs  Int?
+  expiresAtMs BigInt?
+  lastFiredMs BigInt?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([chatId])
+  @@index([tenantId, event, enabled])
+  @@map("eca_rules")
+}
+
+===== game__bracket-tournament.json (bracket-tournament) =====
+model BracketTournament {
+  id             String    @id @default(cuid())
+  tenantId       String
+  chatId         String
+  status         String    @default("open") // open | done
+  entrants       Json // string[] original full entrant list (audit/display)
+  currentRound   Int       @default(1)
+  pendingMatches Json // BracketMatch[] ({a,b}) of the current round still awaiting a recorded winner
+  roundWinners   Json // string[] winners resolved so far this round (recorded wins + automatic byes)
+  champion       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([tenantId, chatId, status])
+  @@map("bracket_tournaments")
+}
+
+// Suggested placement: right after the existing `model Tournament { ... }` block
+// (~line 2243-2257, casino weekly prize-pool), before the
+// "// --- D1 control center MVP ---" comment — keeps it visually next to, but
+// clearly distinct from, the unrelated Tournament model.
+
+===== game__memory-game.json (memory-game) =====
+model MemorySequenceSession {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  seed           Int
+  length         Int
+  startedAt      DateTime @default(now())
+
+  @@unique([chatId, telegramUserId])
+  @@index([tenantId])
+  @@map("memory_sequence_sessions")
+}
+
+
+===== game__playlist-creativity-battles.json (playlist-creativity-battles) =====
+// Add near the other small game-support models in packages/data/prisma/schema.prisma
+// (e.g. next to `model Poll` / `model PollVote`, ~line 976).
+
+/// Shared "submit an entry, then vote" table for the two structurally
+/// identical community battle games (playlist-battle, creativity-challenge).
+/// `kind` discriminates which game a round belongs to; `roundId` groups every
+/// entry submitted while one battle/challenge is open in a chat (generated
+/// by the bot when the round opens — see battle-entries-repository.ts, which
+/// tracks "is a round open right now" via the existing ChatSetting table
+/// rather than a header row here).
+model BattleEntry {
+  id          String   @id @default(cuid())
+  tenantId    String
+  chatId      String
+  kind        String // "playlist" | "creativity"
+  roundId     String
+  submittedBy BigInt
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  votes BattleEntryVote[]
+
+  // One submission per user per round (scoped by kind too, defense-in-depth
+  // in case a roundId were ever reused across kinds).
+  @@unique([roundId, kind, submittedBy])
+  @@index([tenantId, chatId, kind, roundId])
+  @@map("battle_entries")
+}
+
+/// One vote cast by a Telegram user within a battle round. Uniqueness is
+/// scoped to the round (not the entry) so a user gets exactly one vote per
+/// battle/challenge — mirrors PollVote's one-vote-per-poll semantics.
+model BattleEntryVote {
+  id        String   @id @default(cuid())
+  entryId   String
+  roundId   String
+  voterId   BigInt
+  createdAt DateTime @default(now())
+
+  entry BattleEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, voterId])
+  @@index([entryId])
+  @@map("battle_entry_votes")
+}
+
+
+===== game__quiz-adaptive.json (quiz-adaptive) =====
+// Add to packages/data/prisma/schema.prisma, near ReputationProfile (same
+// tenant/chat/user shape — one row per (chat, user)).
+model QuizDifficultyState {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  level          Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([chatId, telegramUserId])
+  @@index([tenantId, chatId])
+  @@map("quiz_difficulty_states")
+}
+
+
+===== game__speed-game.json (speed-game) =====
+// Add to packages/data/prisma/schema.prisma (near Giveaway/GiveawayEntry —
+// same "round + per-user rows" shape, tenantId+chatId scoping, BigInt telegram ids):
+
+model SpeedRound {
+  id           String   @id @default(cuid())
+  tenantId     String
+  chatId       String
+  question     String
+  answer       String
+  status       String   @default("open") // "open" | "closed"
+  startedAt    DateTime @default(now())
+  closesAt     DateTime
+  winnerUserId BigInt?
+  createdBy    BigInt?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  submissions SpeedRoundAnswer[]
+
+  @@index([tenantId, chatId, status])
+  @@map("speed_rounds")
+}
+
+model SpeedRoundAnswer {
+  id         String   @id @default(cuid())
+  roundId    String
+  userId     BigInt
+  correct    Boolean
+  answeredAt DateTime @default(now())
+
+  round SpeedRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, userId])
+  @@index([roundId])
+  @@map("speed_round_answers")
+}
+
+// After adding this block, run (from packages/data):
+//   prisma generate --schema prisma/schema.prisma
+//   prisma db push --schema prisma/schema.prisma   (or migrate dev, per repo convention)
+// which is what makes `this.client.speedRound` / `this.client.speedRoundAnswer`
+// exist on PrismaClient — until then, PrismaSpeedGameRepository will show
+// TS2339 "Property 'speedRound' does not exist on type 'PrismaClient'", same
+// as the other already-written-but-pending repositories in this package right
+// now (coop-city-repository.ts, eca-rule-repository.ts, known-admin-repository.ts,
+// memory-sequence-repository.ts, quiz-difficulty-repository.ts all show the
+// identical error today) — this is the expected, established mid-flight state
+// for this repo, not a bug in the new file.
+
+
+===== security__aggressive-admin-consistency.json (aggressive-admin-consistency) =====
+/// Per-admin moderation-decision history (audit-only): one row per applied
+/// action, tagged with the rule/context that triggered it. Feeds the
+/// aggressive-admin and consistency-check detectors in modules/security/src.
+/// No `@relation` fields (same convention as ChatActivityEvent) so it can be
+/// appended without touching the Tenant/Chat models' back-relation arrays.
+model AdminDecision {
+  id         String   @id @default(cuid())
+  tenantId   String
+  chatId     String
+  adminId    BigInt
+  action     String
+  ruleId     String?
+  occurredAt DateTime @default(now())
+
+  @@index([tenantId, chatId, occurredAt])
+  @@index([tenantId, adminId])
+  @@map("admin_decisions")
+}
+
+
+===== security__external-admin.json (external-admin) =====
+// Append to packages/data/prisma/schema.prisma (anywhere among the other
+// standalone/no-relation models, e.g. next to ChatActivityEvent). No relation
+// fields to Tenant/Chat are declared, matching the ChatActivityEvent pattern,
+// so this model is a self-contained addition that does not require touching
+// any other model block.
+model KnownAdmin {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String
+  adminId   BigInt
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, chatId, adminId])
+  @@index([tenantId, chatId])
+  @@map("known_admins")
+}
+
+
+===== security__pii-qr-shortener-signals.json (pii-qr-shortener-signals) =====
+model DomainReputation {
+  id          String   @id @default(cuid())
+  tenantId    String
+  domain      String
+  firstSeenAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, domain])
+  @@map("domain_reputation")
+}

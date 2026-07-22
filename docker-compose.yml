@@ -1,0 +1,359 @@
+services:
+  postgres:
+    restart: unless-stopped
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: superbot
+      POSTGRES_PASSWORD: superbot
+      POSTGRES_DB: superbot
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superbot -d superbot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    restart: unless-stopped
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  bot:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: "@superbot/bot"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3002
+      BOT_PORT: 3002
+      BOT_MODE: polling
+      DATABASE_URL: postgresql://superbot:superbot@postgres:5432/superbot?schema=public
+      REDIS_URL: redis://redis:6379
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-replace-me}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-replace-me}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-superbot_bot}
+      TELEGRAM_APP_URL: ${TELEGRAM_APP_URL:-http://localhost:3003}
+      # Set to 1 with a stable named tunnel so the bot trusts TELEGRAM_APP_URL and
+      # ignores the rotating /state/app_url file. See docs/stable-tunnel-runbook.md.
+      TELEGRAM_APP_URL_PINNED: ${TELEGRAM_APP_URL_PINNED:-}
+      TELEGRAM_WEBHOOK_BASE_URL: ${TELEGRAM_WEBHOOK_BASE_URL:-}
+      SUPERBOT_OWNER_TELEGRAM_ID: ${SUPERBOT_OWNER_TELEGRAM_ID:-123456789}
+      SUPERBOT_PLATFORM_ADMIN_TELEGRAM_IDS: ${SUPERBOT_PLATFORM_ADMIN_TELEGRAM_IDS:-}
+      SESSION_SECRET: ${SESSION_SECRET:-replace-me-too}
+      MANAGED_BOT_TOKEN_KEY: ${MANAGED_BOT_TOKEN_KEY:-}
+      AI_ENABLED: ${AI_ENABLED:-0}
+      AI_GROQ_ENABLED: ${AI_GROQ_ENABLED:-0}
+      AI_GROQ_API_KEY_1: ${AI_GROQ_API_KEY_1:-}
+      AI_GROQ_API_KEY_2: ${AI_GROQ_API_KEY_2:-}
+      AI_GROQ_API_KEY_3: ${AI_GROQ_API_KEY_3:-}
+      AI_GROQ_API_KEY_4: ${AI_GROQ_API_KEY_4:-}
+      AI_GROQ_API_KEY_5: ${AI_GROQ_API_KEY_5:-}
+      AI_GROQ_API_KEYS: ${AI_GROQ_API_KEYS:-}
+      AI_GROQ_MODEL: ${AI_GROQ_MODEL:-llama-3.1-8b-instant}
+      AI_GROQ_KEY_COOLDOWN_SECONDS: ${AI_GROQ_KEY_COOLDOWN_SECONDS:-60}
+      AI_GEMINI_ENABLED: ${AI_GEMINI_ENABLED:-0}
+      AI_GEMINI_PROJECT_1_API_KEY: ${AI_GEMINI_PROJECT_1_API_KEY:-}
+      AI_GEMINI_PROJECT_2_API_KEY: ${AI_GEMINI_PROJECT_2_API_KEY:-}
+      AI_GEMINI_PROJECT_3_API_KEY: ${AI_GEMINI_PROJECT_3_API_KEY:-}
+      AI_GEMINI_PROJECT_4_API_KEY: ${AI_GEMINI_PROJECT_4_API_KEY:-}
+      AI_GEMINI_PROJECT_5_API_KEY: ${AI_GEMINI_PROJECT_5_API_KEY:-}
+      AI_GEMINI_API_KEYS: ${AI_GEMINI_API_KEYS:-}
+      AI_GEMINI_MODEL: ${AI_GEMINI_MODEL:-gemini-2.5-flash-lite}
+      AI_GEMINI_KEY_COOLDOWN_SECONDS: ${AI_GEMINI_KEY_COOLDOWN_SECONDS:-90}
+      AI_OPENROUTER_ENABLED: ${AI_OPENROUTER_ENABLED:-0}
+      AI_OPENROUTER_API_KEY: ${AI_OPENROUTER_API_KEY:-}
+      AI_OPENROUTER_MODEL: ${AI_OPENROUTER_MODEL:-openrouter/free}
+      AI_OPENROUTER_ALLOW_PAID_MODELS: ${AI_OPENROUTER_ALLOW_PAID_MODELS:-0}
+      AI_PROVIDER_ORDER: ${AI_PROVIDER_ORDER:-groq,gemini,openrouter}
+      AI_MAX_REQUESTS_PER_USER_DAY: ${AI_MAX_REQUESTS_PER_USER_DAY:-20}
+      AI_MAX_REQUESTS_PER_GROUP_DAY: ${AI_MAX_REQUESTS_PER_GROUP_DAY:-200}
+      AI_MAX_TOKENS_PER_REQUEST: ${AI_MAX_TOKENS_PER_REQUEST:-1200}
+      AI_MAX_INPUT_CHARS: ${AI_MAX_INPUT_CHARS:-8000}
+      AI_CACHE_TTL_SECONDS: ${AI_CACHE_TTL_SECONDS:-3600}
+      AI_PRIVACY_MODE: ${AI_PRIVACY_MODE:-normal}
+      TELEGRAM_AI_GUEST_MODE_EXPECTED: ${TELEGRAM_AI_GUEST_MODE_EXPECTED:-1}
+      TELEGRAM_AI_INLINE_MODE_EXPECTED: ${TELEGRAM_AI_INLINE_MODE_EXPECTED:-1}
+      TELEGRAM_AI_STREAM_DRAFTS: ${TELEGRAM_AI_STREAM_DRAFTS:-1}
+      TELEGRAM_AI_USE_SEND_CHAT_ACTION: ${TELEGRAM_AI_USE_SEND_CHAT_ACTION:-1}
+      GUARDIAN_ENABLED: ${GUARDIAN_ENABLED:-0}
+      GUARDIAN_MINIAPP_URL: ${GUARDIAN_MINIAPP_URL:-}
+      GUARDIAN_SESSION_SECRET: ${GUARDIAN_SESSION_SECRET:-}
+      GUARDIAN_DEFAULT_STAFF_CHAT_ID: ${GUARDIAN_DEFAULT_STAFF_CHAT_ID:-}
+      GUARDIAN_DEFAULT_STAFF_THREAD_ID: ${GUARDIAN_DEFAULT_STAFF_THREAD_ID:-}
+      GUARDIAN_TEST_MODE: ${GUARDIAN_TEST_MODE:-0}
+      GUARDIAN_TEST_FORCED_GESTURE: ${GUARDIAN_TEST_FORCED_GESTURE:-}
+      GUARDIAN_TEST_FORCED_GESTURE_2: ${GUARDIAN_TEST_FORCED_GESTURE_2:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3002:3002"
+    volumes:
+      # Live tunnel URL written by the urlsync sidecar (read-only for the bot).
+      - tunnel_state:/state:ro
+
+  api:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: "@superbot/api"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      API_PORT: 3001
+      DATABASE_URL: postgresql://superbot:superbot@postgres:5432/superbot?schema=public
+      REDIS_URL: redis://redis:6379
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-replace-me}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-replace-me}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-superbot_bot}
+      TELEGRAM_APP_URL: ${TELEGRAM_APP_URL:-http://localhost:3003}
+      TELEGRAM_WEBHOOK_BASE_URL: ${TELEGRAM_WEBHOOK_BASE_URL:-}
+      SUPERBOT_OWNER_TELEGRAM_ID: ${SUPERBOT_OWNER_TELEGRAM_ID:-123456789}
+      SUPERBOT_PLATFORM_ADMIN_TELEGRAM_IDS: ${SUPERBOT_PLATFORM_ADMIN_TELEGRAM_IDS:-}
+      SESSION_SECRET: ${SESSION_SECRET:-replace-me-too}
+      MANAGED_BOT_TOKEN_KEY: ${MANAGED_BOT_TOKEN_KEY:-}
+      # Temporary target key for a supervised MANAGED_BOT_TOKEN_KEY rotation —
+      # consumed by scripts/reencrypt-managed-bot-tokens.mjs from the container
+      # env (never argv). Empty outside a rotation; remove after promoting it.
+      MANAGED_BOT_TOKEN_KEY_NEW: ${MANAGED_BOT_TOKEN_KEY_NEW:-}
+      GUARDIAN_ENABLED: ${GUARDIAN_ENABLED:-0}
+      GUARDIAN_VISION_JUDGE_ENABLED: ${GUARDIAN_VISION_JUDGE_ENABLED:-0}
+      GUARDIAN_MINIAPP_URL: ${GUARDIAN_MINIAPP_URL:-}
+      GUARDIAN_SESSION_SECRET: ${GUARDIAN_SESSION_SECRET:-}
+      # Decrypt-only fallback for a GUARDIAN_SESSION_SECRET rotation window. api
+      # decrypts join-request query_ids, so without this the dual-read is inert.
+      GUARDIAN_SESSION_SECRET_PREVIOUS: ${GUARDIAN_SESSION_SECRET_PREVIOUS:-}
+      GUARDIAN_MEDIA_ENCRYPTION_KEY: ${GUARDIAN_MEDIA_ENCRYPTION_KEY:-}
+      # Decrypt-only fallback for a GUARDIAN_MEDIA_ENCRYPTION_KEY rotation window.
+      GUARDIAN_MEDIA_ENCRYPTION_KEY_PREVIOUS: ${GUARDIAN_MEDIA_ENCRYPTION_KEY_PREVIOUS:-}
+      GUARDIAN_DEFAULT_STAFF_CHAT_ID: ${GUARDIAN_DEFAULT_STAFF_CHAT_ID:-}
+      GUARDIAN_DEFAULT_STAFF_THREAD_ID: ${GUARDIAN_DEFAULT_STAFF_THREAD_ID:-}
+      GUARDIAN_STORAGE_DRIVER: ${GUARDIAN_STORAGE_DRIVER:-local}
+      GUARDIAN_STORAGE_PATH: ${GUARDIAN_STORAGE_PATH:-./data/guardian-media}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      S3_REGION: ${S3_REGION:-}
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-}
+      AI_SERVICE_API_KEY: ${AI_SERVICE_API_KEY:-}
+      GUARDIAN_RETENTION_HOURS: ${GUARDIAN_RETENTION_HOURS:-72}
+      GUARDIAN_MAX_UPLOAD_MB: ${GUARDIAN_MAX_UPLOAD_MB:-25}
+      GUARDIAN_TEST_MODE: ${GUARDIAN_TEST_MODE:-0}
+      # Guardian photo-mode vision check (Gemini primary, Groq fallback). Safe
+      # empty defaults: with no keys the check is "unavailable" and AUTO routes
+      # to STAFF rather than approving.
+      AI_GEMINI_PROJECT_1_API_KEY: ${AI_GEMINI_PROJECT_1_API_KEY:-}
+      AI_GEMINI_PROJECT_2_API_KEY: ${AI_GEMINI_PROJECT_2_API_KEY:-}
+      AI_GEMINI_PROJECT_3_API_KEY: ${AI_GEMINI_PROJECT_3_API_KEY:-}
+      AI_GEMINI_PROJECT_4_API_KEY: ${AI_GEMINI_PROJECT_4_API_KEY:-}
+      AI_GEMINI_PROJECT_5_API_KEY: ${AI_GEMINI_PROJECT_5_API_KEY:-}
+      AI_GEMINI_API_KEYS: ${AI_GEMINI_API_KEYS:-}
+      AI_GEMINI_MODEL: ${AI_GEMINI_MODEL:-gemini-2.5-flash-lite}
+      AI_GROQ_API_KEY_1: ${AI_GROQ_API_KEY_1:-}
+      AI_GROQ_API_KEY_2: ${AI_GROQ_API_KEY_2:-}
+      AI_GROQ_API_KEY_3: ${AI_GROQ_API_KEY_3:-}
+      AI_GROQ_API_KEY_4: ${AI_GROQ_API_KEY_4:-}
+      AI_GROQ_API_KEY_5: ${AI_GROQ_API_KEY_5:-}
+      AI_GROQ_API_KEYS: ${AI_GROQ_API_KEYS:-}
+      GUARDIAN_GROQ_VISION_MODEL: ${GUARDIAN_GROQ_VISION_MODEL:-meta-llama/llama-4-scout-17b-16e-instruct}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Bound to loopback only: the ONLY legitimate public ingress is the
+    # Cloudflare named tunnel (cloudflared-named -> http://web:3003 over the
+    # internal compose network), which never uses this host-published port.
+    # Publishing this on 0.0.0.0 would let anyone on the LAN (or a router
+    # port-forward) hit the api directly and forge Cf-IpCountry, bypassing
+    # Cloudflare's header normalization that guardian-verify.controller.ts's
+    # country gate relies on. Do not widen this without re-adding a
+    # provenance check on cf-ipcountry.
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - guardian_media:/app/data/guardian-media
+
+  worker:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: "@superbot/worker"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      WORKER_PORT: 3004
+      WORKER_CONCURRENCY: 2
+      DATABASE_URL: postgresql://superbot:superbot@postgres:5432/superbot?schema=public
+      REDIS_URL: redis://redis:6379
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-replace-me}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-replace-me}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-superbot_bot}
+      TELEGRAM_APP_URL: ${TELEGRAM_APP_URL:-http://localhost:3003}
+      SESSION_SECRET: ${SESSION_SECRET:-replace-me-too}
+      MANAGED_BOT_TOKEN_KEY: ${MANAGED_BOT_TOKEN_KEY:-}
+      # The worker processes guardian verification-session jobs, so it needs the
+      # SAME session secret as api/web to sign/verify them — without it the
+      # guardian expiry "queue" fallback can't run. Was missing here.
+      GUARDIAN_SESSION_SECRET: ${GUARDIAN_SESSION_SECRET:-}
+      # The worker decrypts join-request query_ids in guardian.session.expire, so
+      # it needs the same decrypt-only fallback as api during a secret rotation.
+      GUARDIAN_SESSION_SECRET_PREVIOUS: ${GUARDIAN_SESSION_SECRET_PREVIOUS:-}
+      GUARDIAN_STORAGE_DRIVER: ${GUARDIAN_STORAGE_DRIVER:-local}
+      GUARDIAN_STORAGE_PATH: ${GUARDIAN_STORAGE_PATH:-./data/guardian-media}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      S3_REGION: ${S3_REGION:-}
+      GUARDIAN_RETENTION_HOURS: ${GUARDIAN_RETENTION_HOURS:-72}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      # Bind to loopback only, like api (3001) and web (3003). The worker exposes
+      # POST /v1/jobs/enqueue; on 0.0.0.0 that was reachable from the whole network
+      # unauthenticated. Other services still reach it in-cluster via worker:3004.
+      - "127.0.0.1:3004:3004"
+    volumes:
+      - guardian_media:/app/data/guardian-media
+
+  # Guardian Verification's real server-side visual analyzer (Python/FastAPI/
+  # OpenCV/MediaPipe — services/guardian-vision-analyzer). Optional: the api
+  # service degrades to manual_review (never a fabricated auto_approve) when
+  # this isn't reachable — see modules/guardian/src/decision-engine.ts.
+  guardian-vision-analyzer:
+    restart: unless-stopped
+    build:
+      context: ./services/guardian-vision-analyzer
+      dockerfile: Dockerfile
+    ports:
+      - "8088:8088"
+    # Uses the HEALTHCHECK already baked into services/guardian-vision-analyzer/Dockerfile.
+
+  web:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: "@superbot/web"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3003
+      TELEGRAM_APP_URL: ${TELEGRAM_APP_URL:-http://localhost:3003}
+      API_INTERNAL_URL: http://api:3001
+      DATABASE_URL: postgresql://superbot:superbot@postgres:5432/superbot?schema=public
+      REDIS_URL: redis://redis:6379
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-replace-me}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-replace-me}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-superbot_bot}
+      BOT_INTERNAL_URL: http://bot:3002
+      SESSION_SECRET: ${SESSION_SECRET:-replace-me-too}
+      GUARDIAN_ENABLED: ${GUARDIAN_ENABLED:-0}
+      GUARDIAN_TEST_MODE: ${GUARDIAN_TEST_MODE:-0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Same reasoning as api's port above: loopback-only so the Cloudflare
+    # tunnel (which reaches this container via the internal compose network,
+    # not this host port) remains the only public ingress.
+    ports:
+      - "127.0.0.1:3003:3003"
+
+  # Public HTTPS for the Telegram Mini App. Only enabled with the "tunnel"
+  # profile so normal `docker compose up` never starts it.
+  #   dev  : quick tunnel -> https://<random>.trycloudflare.com (URL rotates on restart)
+  #   prod : replace command with ["tunnel","run","--token","${TUNNEL_TOKEN}"] (stable named tunnel)
+  cloudflared:
+    profiles: ["tunnel"]
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "--url", "http://web:3003"]
+    depends_on:
+      - web
+
+  # Self-heals the rotating quick-tunnel URL with NO host command: it watches
+  # cloudflared's logs (via the Docker socket) and writes the current public URL
+  # to a shared volume that the bot reads live. No .env edits, no restarts, no
+  # host-drive bind mount. The bot re-sets its Bot-API menu button whenever the
+  # URL changes. NOTE: it cannot update BotFather's registered app URL (that needs
+  # the bot owner's Telegram account) — so private-chat entry via the menu button
+  # self-heals here; group Mini App buttons still need the owner step (or a stable
+  # named-tunnel URL) after a rotation.
+  urlsync:
+    profiles: ["tunnel"]
+    image: docker:cli
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - tunnel_state:/state
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        echo "urlsync: watching cloudflared for the tunnel URL"
+        while true; do
+          # Resolve the cloudflared container by compose labels (same project as
+          # this container) instead of a hardcoded name, so this works under any
+          # compose project name (ultrabot, guardian-test, ...) without editing.
+          PROJECT=$$(docker inspect "$$(hostname)" --format '{{ index .Config.Labels "com.docker.compose.project" }}' 2>/dev/null)
+          CLOUDFLARED=$$(docker ps --filter "label=com.docker.compose.project=$$PROJECT" --filter "label=com.docker.compose.service=cloudflared" --format '{{.Names}}' | head -1)
+          if [ -n "$$CLOUDFLARED" ]; then
+            URL=$$(docker logs "$$CLOUDFLARED" 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1)
+            if [ -n "$$URL" ]; then
+              CUR=$$(cat /state/app_url 2>/dev/null)
+              if [ "$$URL" != "$$CUR" ]; then
+                echo "urlsync: $$CUR -> $$URL"
+                printf '%s' "$$URL" > /state/app_url
+              fi
+            fi
+          fi
+          sleep 10
+        done
+    depends_on:
+      - cloudflared
+
+  # Stable named tunnel (Cloudflare account + a domain on Cloudflare). The public
+  # hostname -> http://web:3003 mapping lives in the Cloudflare Zero Trust
+  # dashboard, so this service only needs the tunnel token. The URL NEVER rotates,
+  # so no urlsync sidecar is needed. Enable with:
+  #   docker compose --profile tunnel-named up -d
+  # and set CLOUDFLARE_TUNNEL_TOKEN + TELEGRAM_APP_URL + TELEGRAM_APP_URL_PINNED=1
+  # in .env. Full steps: docs/stable-tunnel-runbook.md.
+  cloudflared-named:
+    profiles: ["tunnel-named"]
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command:
+      ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
+    depends_on:
+      - web
+
+volumes:
+  postgres_data:
+  tunnel_state:
+  # Guardian Verification media (local storage driver only — irrelevant when
+  # GUARDIAN_STORAGE_DRIVER=s3). Shared between api (writes) and worker (retention
+  # cleanup deletes).
+  guardian_media:
