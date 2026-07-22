@@ -8,6 +8,15 @@ verifyDepsBeforeRun: false
 nodeLinker: hoisted
 confirmModulesPurge: false
 
+# Pin vulnerable transitive deps above their fixed versions (from pnpm audit):
+#   fast-uri <3.1.4  host confusion (GHSA-4c8g-83qw-93j6, GHSA-v2hh-gcrm-f6hx)
+#   sharp    <0.35.0 libvips CVEs   (GHSA-f88m-g3jw-g9cj)
+#   postcss  <8.5.10 CSS XSS        (GHSA-qx2v-qp2m-jg93)
+overrides:
+  fast-uri: "^3.1.4"
+  sharp: "^0.35.0"
+  postcss: "^8.5.10"
+
 onlyBuiltDependencies:
   - "@prisma/client"
   - "@prisma/engines"
