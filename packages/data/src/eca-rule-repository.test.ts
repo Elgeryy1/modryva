@@ -22,7 +22,10 @@ describe("InMemoryEcaRuleRepository", () => {
 
   it("lists both chat-specific and tenant-wide rules for a chat", async () => {
     const repo = new InMemoryEcaRuleRepository();
-    await repo.create("t1", null, "new_member", [], { kind: "log", text: "join" });
+    await repo.create("t1", null, "new_member", [], {
+      kind: "log",
+      text: "join",
+    });
     await repo.create("t1", "c1", "report", [], {
       kind: "notify_staff",
       text: "reporte",

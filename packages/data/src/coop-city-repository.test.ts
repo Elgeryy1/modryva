@@ -18,7 +18,9 @@ describe("InMemoryCoopCityContributionRepository", () => {
     await repo.addContribution("t2", "c1", 111n, 40);
 
     const c1 = await repo.listContributions("t1", "c1");
-    expect(c1.sort((a, b) => Number(a.telegramUserId - b.telegramUserId))).toEqual([
+    expect(
+      c1.sort((a, b) => Number(a.telegramUserId - b.telegramUserId)),
+    ).toEqual([
       { telegramUserId: 111n, resources: 10 },
       { telegramUserId: 222n, resources: 20 },
     ]);

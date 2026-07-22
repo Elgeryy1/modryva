@@ -63,8 +63,7 @@ run("docker", ["compose", "up", "-d", "bot", "api", "worker", "web"]);
 console.log("→ 4/4  BotFather…");
 // Por defecto no hay script de BotFather; define BOTFATHER_SCRIPT o hazlo a mano.
 // Si se limpia, define BOTFATHER_SCRIPT o haz el /editapp a mano.
-const DEFAULT_BF =
-  "";
+const DEFAULT_BF = "";
 const bf = process.env.BOTFATHER_SCRIPT || DEFAULT_BF;
 if (bf && existsSync(bf)) {
   try {

@@ -181,7 +181,9 @@ const runtimeEnvSchema = z
     // Decrypt-only fallback for a GUARDIAN_SESSION_SECRET rotation window (see
     // docs/INCIDENT-ROTATION-AND-DEPLOY-2026-07-17.md). Optional; must differ
     // from GUARDIAN_SESSION_SECRET and only makes sense alongside it.
-    GUARDIAN_SESSION_SECRET_PREVIOUS: optionalNonEmptyString(z.string().min(16)),
+    GUARDIAN_SESSION_SECRET_PREVIOUS: optionalNonEmptyString(
+      z.string().min(16),
+    ),
     // At-rest encryption key for captured media (applied via storage-factory's
     // EncryptingObjectStorageDriver — media is never written unprotected).
     GUARDIAN_MEDIA_ENCRYPTION_KEY: optionalNonEmptyString(z.string().min(16)),

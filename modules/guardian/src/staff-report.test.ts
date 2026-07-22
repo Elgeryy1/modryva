@@ -173,9 +173,9 @@ describe("plainReasonLabel", () => {
     expect(plainReasonLabel("hard_failure_auto_decline_disabled")).not.toBe(
       "No se pudo confirmar automáticamente — revisa el caso.",
     );
-    expect(
-      plainReasonLabel("same_person_mismatch_auto_decline_disabled"),
-    ).toBe("Las dos fotos NO parecen ser de la misma persona.");
+    expect(plainReasonLabel("same_person_mismatch_auto_decline_disabled")).toBe(
+      "Las dos fotos NO parecen ser de la misma persona.",
+    );
   });
 
   it("maps the spoofing/replay-risk reason (previously unmapped)", () => {
@@ -251,9 +251,7 @@ describe("staff callback round-trip", () => {
       >;
     };
     const allButtons = keyboard.inline_keyboard.flat();
-    const contactButton = allButtons.find((b) =>
-      b.text.includes("Contactar"),
-    );
+    const contactButton = allButtons.find((b) => b.text.includes("Contactar"));
     expect(contactButton?.url).toBe("https://t.me/nueva");
     const signedButtons = allButtons.filter((b) => b.callback_data);
     expect(new Set(signedButtons.map((b) => b.callback_data)).size).toBe(5);

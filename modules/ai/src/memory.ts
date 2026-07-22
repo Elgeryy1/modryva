@@ -205,11 +205,9 @@ export const describeMemory = (memory: StoredMemory): string => {
   return label ? label(memory.value) : `${memory.key}: ${memory.value}`;
 };
 
-export const renderMemoryList = (
-  memories: readonly StoredMemory[],
-): string => {
+export const renderMemoryList = (memories: readonly StoredMemory[]): string => {
   if (memories.length === 0) {
-    return 'Todavía no recuerdo nada de ti. Dime «Modryva, recuerda que…» y lo apunto. 🧠';
+    return "Todavía no recuerdo nada de ti. Dime «Modryva, recuerda que…» y lo apunto. 🧠";
   }
   const lines = memories.map((m, i) => `${i + 1}. ${describeMemory(m)}`);
   return [

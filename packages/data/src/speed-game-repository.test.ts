@@ -64,9 +64,24 @@ describe("InMemorySpeedGameRepository", () => {
     const repo = new InMemorySpeedGameRepository();
     const round = await repo.createRound("t1", "c1", "q", "42", START, CLOSES);
 
-    await repo.submitAnswer(round.id, 1n, new Date(START.getTime() + 3_000), false);
-    await repo.submitAnswer(round.id, 2n, new Date(START.getTime() + 2_000), true);
-    await repo.submitAnswer(round.id, 3n, new Date(START.getTime() + 1_000), true);
+    await repo.submitAnswer(
+      round.id,
+      1n,
+      new Date(START.getTime() + 3_000),
+      false,
+    );
+    await repo.submitAnswer(
+      round.id,
+      2n,
+      new Date(START.getTime() + 2_000),
+      true,
+    );
+    await repo.submitAnswer(
+      round.id,
+      3n,
+      new Date(START.getTime() + 1_000),
+      true,
+    );
 
     const result = await repo.closeRound(round.id);
 
@@ -84,7 +99,12 @@ describe("InMemorySpeedGameRepository", () => {
   it("returns a null winner when nobody answered correctly", async () => {
     const repo = new InMemorySpeedGameRepository();
     const round = await repo.createRound("t1", "c1", "q", "a", START, CLOSES);
-    await repo.submitAnswer(round.id, 1n, new Date(START.getTime() + 500), false);
+    await repo.submitAnswer(
+      round.id,
+      1n,
+      new Date(START.getTime() + 500),
+      false,
+    );
 
     const result = await repo.closeRound(round.id);
     expect(result.winnerUserId).toBeNull();
@@ -102,7 +122,12 @@ describe("InMemorySpeedGameRepository", () => {
   it("is idempotent: closing an already-closed round returns the same ranking", async () => {
     const repo = new InMemorySpeedGameRepository();
     const round = await repo.createRound("t1", "c1", "q", "a", START, CLOSES);
-    await repo.submitAnswer(round.id, 1n, new Date(START.getTime() + 1_000), true);
+    await repo.submitAnswer(
+      round.id,
+      1n,
+      new Date(START.getTime() + 1_000),
+      true,
+    );
 
     const first = await repo.closeRound(round.id);
     const second = await repo.closeRound(round.id);

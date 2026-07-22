@@ -114,5 +114,11 @@ export const reencryptManagedBotTokens = async (
     reencrypted += 1;
   }
 
-  return { total: rows.length, alreadyMigrated, reencrypted, pending, verified };
+  return {
+    total: rows.length,
+    alreadyMigrated,
+    reencrypted,
+    pending,
+    verified,
+  };
 };

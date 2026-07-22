@@ -53,7 +53,10 @@ describe("parseRememberCommand", () => {
   // "Mil millones de formas": every one of these must capture the fact.
   const SAVES: Array<[string, string]> = [
     ["Modryva recuerda que me llamo Alex", "me llamo Alex"],
-    ["Modryva, recuérdame que soy alérgico al marisco", "soy alérgico al marisco"],
+    [
+      "Modryva, recuérdame que soy alérgico al marisco",
+      "soy alérgico al marisco",
+    ],
     ["recuérdame que tengo reunión los lunes", "tengo reunión los lunes"],
     ["no olvides que prefiero respuestas cortas", "prefiero respuestas cortas"],
     ["no te olvides de que soy vegetariano", "soy vegetariano"],
@@ -102,7 +105,11 @@ describe("parseRememberCommand", () => {
 describe("describeMemory / renderMemoryList", () => {
   it("shows explicit notes verbatim and labels structured facts", () => {
     expect(
-      describeMemory({ key: "note:abc", value: "soy alérgico al marisco", source: "explicit" }),
+      describeMemory({
+        key: "note:abc",
+        value: "soy alérgico al marisco",
+        source: "explicit",
+      }),
     ).toBe("soy alérgico al marisco");
     expect(describeMemory({ key: "preferred_name", value: "Alex" })).toBe(
       "Te llamas Alex",
@@ -115,7 +122,11 @@ describe("describeMemory / renderMemoryList", () => {
   it("renders a numbered manage-memory list with controls", () => {
     const out = renderMemoryList([
       { key: "preferred_name", value: "Alex" },
-      { key: "note:x", value: "prefiero respuestas cortas", source: "explicit" },
+      {
+        key: "note:x",
+        value: "prefiero respuestas cortas",
+        source: "explicit",
+      },
     ]);
     expect(out).toContain("1. Te llamas Alex");
     expect(out).toContain("2. prefiero respuestas cortas");

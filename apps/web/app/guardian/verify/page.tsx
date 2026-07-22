@@ -92,12 +92,8 @@ function GuardianVerifyInner() {
   // gesture, and the first photo is held here while the Mini App re-guides
   // the person through the second (different) gesture before a single
   // combined submit — never two separate attempt/submit calls.
-  const [pendingAttemptId, setPendingAttemptId] = useState<string | null>(
-    null,
-  );
-  const [firstPhotoBase64, setFirstPhotoBase64] = useState<string | null>(
-    null,
-  );
+  const [pendingAttemptId, setPendingAttemptId] = useState<string | null>(null);
+  const [firstPhotoBase64, setFirstPhotoBase64] = useState<string | null>(null);
   const sessionToken = search.get("session") ?? "";
   const cameraRef = useRef<CameraStreamResult | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -473,7 +469,8 @@ function GuardianVerifyInner() {
 
   if (phase.status === "guide") {
     const totalSteps = phase.session.challenge.steps.length;
-    const gesture = phase.session.challenge.steps[phase.stepIndex]?.action ?? "";
+    const gesture =
+      phase.session.challenge.steps[phase.stepIndex]?.action ?? "";
     const isSecondPhoto = totalSteps > 1 && phase.stepIndex > 0;
     return (
       <Screen>

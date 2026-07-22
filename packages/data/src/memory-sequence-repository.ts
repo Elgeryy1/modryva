@@ -29,9 +29,7 @@ export interface StartMemorySequenceInput {
 
 export interface MemorySequenceRepository {
   /** Opens (or replaces) the single active session for this player in this chat. */
-  start(
-    input: StartMemorySequenceInput,
-  ): Promise<MemorySequenceSessionState>;
+  start(input: StartMemorySequenceInput): Promise<MemorySequenceSessionState>;
   /** The player's currently open session in this chat, or null if none. */
   getActive(
     chatId: string,

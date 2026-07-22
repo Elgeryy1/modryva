@@ -498,7 +498,8 @@ export interface GestureVisionProvider {
 const GESTURE_DESCRIPTIONS: Record<string, string> = {
   thumbs_up: "a thumbs-up 👍 (thumb extended upward, other fingers curled)",
   victory: "a victory / peace sign ✌️ (index and middle fingers up forming a V)",
-  open_palm: "an open palm ✋ (all five fingers spread, palm toward the camera)",
+  open_palm:
+    "an open palm ✋ (all five fingers spread, palm toward the camera)",
   closed_fist: "a closed fist ✊ (all fingers curled into a fist)",
   show_one_finger: "exactly one finger raised ☝️ (index finger only)",
   show_two_fingers: "exactly two fingers raised",
@@ -518,8 +519,8 @@ const buildGesturePrompt = (requestedGesture: string): string =>
     '- "faceVisible": boolean, is exactly one human face clearly visible.',
     '- "gesturePresent": boolean, is the person clearly performing the requested gesture.',
     '- "gestureConfidence": number 0..1, confidence the requested gesture is correctly shown.',
-    "- \"estimatedAgeMin\": integer, lower bound of the person's likely age in years.",
-    "- \"estimatedAgeMax\": integer, upper bound of the person's likely age in years.",
+    '- "estimatedAgeMin": integer, lower bound of the person\'s likely age in years.',
+    '- "estimatedAgeMax": integer, upper bound of the person\'s likely age in years.',
     '- "realPerson": boolean, true if a real live person physically present; false if a photo of a screen, a printed photo, or an AI-generated/edited image.',
     '- "spoofRisk": number 0..1, risk this is a screen/printout/photo-of-a-photo rather than a live capture.',
     '- "qualityOk": boolean, is the image sharp and well-lit enough to judge.',
@@ -725,8 +726,14 @@ export class GeminiGroqGestureVisionProvider implements GestureVisionProvider {
     } catch {
       return this.unavailableMatch(["media-read-failed"]);
     }
-    const imageA = { base64: bytesA.toString("base64"), mime: imageMimeFor(mediaA.mimeType) };
-    const imageB = { base64: bytesB.toString("base64"), mime: imageMimeFor(mediaB.mimeType) };
+    const imageA = {
+      base64: bytesA.toString("base64"),
+      mime: imageMimeFor(mediaA.mimeType),
+    };
+    const imageB = {
+      base64: bytesB.toString("base64"),
+      mime: imageMimeFor(mediaB.mimeType),
+    };
     const warnings: string[] = [];
 
     for (const key of this.config.geminiApiKeys ?? []) {
@@ -796,8 +803,12 @@ export class GeminiGroqGestureVisionProvider implements GestureVisionProvider {
                 role: "user",
                 parts: [
                   { text: FACE_MATCH_PROMPT },
-                  { inlineData: { mimeType: imageA.mime, data: imageA.base64 } },
-                  { inlineData: { mimeType: imageB.mime, data: imageB.base64 } },
+                  {
+                    inlineData: { mimeType: imageA.mime, data: imageA.base64 },
+                  },
+                  {
+                    inlineData: { mimeType: imageB.mime, data: imageB.base64 },
+                  },
                 ],
               },
             ],
@@ -859,11 +870,15 @@ export class GeminiGroqGestureVisionProvider implements GestureVisionProvider {
                   { type: "text", text: FACE_MATCH_PROMPT },
                   {
                     type: "image_url",
-                    image_url: { url: `data:${imageA.mime};base64,${imageA.base64}` },
+                    image_url: {
+                      url: `data:${imageA.mime};base64,${imageA.base64}`,
+                    },
                   },
                   {
                     type: "image_url",
-                    image_url: { url: `data:${imageB.mime};base64,${imageB.base64}` },
+                    image_url: {
+                      url: `data:${imageB.mime};base64,${imageB.base64}`,
+                    },
                   },
                 ],
               },
@@ -899,8 +914,7 @@ export class GeminiGroqGestureVisionProvider implements GestureVisionProvider {
       estimatedAgeMax: j.estimatedAgeMax,
       realPerson: j.realPerson,
       spoofRisk: j.spoofRisk,
-      qualityScore:
-        j.qualityOk === null ? null : j.qualityOk ? 0.85 : 0.4,
+      qualityScore: j.qualityOk === null ? null : j.qualityOk ? 0.85 : 0.4,
       warnings: [],
       reason: j.reason,
       modelName: this.modelName,

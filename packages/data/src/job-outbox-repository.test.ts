@@ -76,9 +76,7 @@ describe("InMemoryJobOutboxRepository", () => {
     const repo = new InMemoryJobOutboxRepository();
     const job = await repo.enqueue("t1", "topic", { n: 1 });
     const retryAt = new Date(Date.now() + 5_000);
-    expect(
-      await repo.fail(job.id, { retryAt, error: "timeout" }),
-    ).toBe(true);
+    expect(await repo.fail(job.id, { retryAt, error: "timeout" })).toBe(true);
 
     const now = new Date();
     expect(await repo.claim("topic", now, 30_000)).toHaveLength(0);

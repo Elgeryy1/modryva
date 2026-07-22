@@ -1,7 +1,7 @@
 import {
+  type ChatActivityRepository,
   InMemoryChatActivityRepository,
   PrismaChatActivityRepository,
-  type ChatActivityRepository,
 } from "./chat-activity-repository.js";
 
 /**
@@ -107,7 +107,9 @@ const getVoteCountVia = async (
  * (Prisma-backed by default), so votes persist in the existing
  * `ChatActivityEvent` table under kind "debate_vote". No new table.
  */
-export class PrismaDebateDuelVoteRepository implements DebateDuelVoteRepository {
+export class PrismaDebateDuelVoteRepository
+  implements DebateDuelVoteRepository
+{
   constructor(
     private readonly activity: ChatActivityRepository = new PrismaChatActivityRepository(),
   ) {}

@@ -271,11 +271,13 @@ describe("GestureVisionProvider.compareFaces", () => {
   });
 
   it("reports a confirmed match from Gemini's real response", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValue(
-        geminiResponseWith({ samePerson: true, confidence: 0.92, reason: "same face" }),
-      );
+    const fetchImpl = vi.fn().mockResolvedValue(
+      geminiResponseWith({
+        samePerson: true,
+        confidence: 0.92,
+        reason: "same face",
+      }),
+    );
     const provider = new GeminiGroqGestureVisionProvider({
       readMedia: async () => Buffer.from("fake jpeg bytes"),
       geminiApiKeys: ["key-1"],
@@ -288,15 +290,13 @@ describe("GestureVisionProvider.compareFaces", () => {
   });
 
   it("reports a confirmed MISMATCH — never coerced into a pass", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValue(
-        geminiResponseWith({
-          samePerson: false,
-          confidence: 0.81,
-          reason: "different face shape",
-        }),
-      );
+    const fetchImpl = vi.fn().mockResolvedValue(
+      geminiResponseWith({
+        samePerson: false,
+        confidence: 0.81,
+        reason: "different face shape",
+      }),
+    );
     const provider = new GeminiGroqGestureVisionProvider({
       readMedia: async () => Buffer.from("fake jpeg bytes"),
       geminiApiKeys: ["key-1"],

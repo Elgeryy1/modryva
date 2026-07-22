@@ -18,10 +18,7 @@ export interface KnownAdminRepository {
     adminId: bigint,
   ): Promise<void>;
   /** Every admin id tracked as known for this chat, in no particular order. */
-  listKnownAdmins(
-    tenantId: string,
-    chatId: string,
-  ): Promise<readonly bigint[]>;
+  listKnownAdmins(tenantId: string, chatId: string): Promise<readonly bigint[]>;
   /**
    * Stops tracking `adminId` as known for this chat (e.g. after a /demote).
    * A no-op if the id was never tracked.

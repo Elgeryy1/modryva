@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { prisma as defaultPrisma } from "./client.js";
 import type { AutomationAction } from "./automation-repository.js";
+import { prisma as defaultPrisma } from "./client.js";
 
 /**
  * Repositorio para las reglas del motor ECA puro
@@ -161,7 +161,9 @@ export class PrismaEcaRuleRepository implements EcaRuleRepository {
           ...(patch.conditions !== undefined
             ? { conditions: toJson(patch.conditions) }
             : {}),
-          ...(patch.action !== undefined ? { action: toJson(patch.action) } : {}),
+          ...(patch.action !== undefined
+            ? { action: toJson(patch.action) }
+            : {}),
           ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
           ...(patch.cooldownMs !== undefined
             ? { cooldownMs: patch.cooldownMs }

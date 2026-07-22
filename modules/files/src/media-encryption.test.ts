@@ -153,21 +153,37 @@ describe("EncryptingObjectStorageDriver — key rotation (dual-read)", () => {
     const original = Buffer.from("captured before the media-key rotation");
     inner.store.set("old", encryptMediaBuffer(original, previous));
 
-    const rotating = new EncryptingObjectStorageDriver(inner, primary, previous);
+    const rotating = new EncryptingObjectStorageDriver(
+      inner,
+      primary,
+      previous,
+    );
     expect((await rotating.get("old"))?.equals(original)).toBe(true);
   });
 
   it("reads media written with the PRIMARY key", async () => {
     const inner = fakeDriver();
-    const rotating = new EncryptingObjectStorageDriver(inner, primary, previous);
+    const rotating = new EncryptingObjectStorageDriver(
+      inner,
+      primary,
+      previous,
+    );
     const original = Buffer.from("captured after the switch");
-    await rotating.put({ key: "new", data: original, contentType: "video/mp4" });
+    await rotating.put({
+      key: "new",
+      data: original,
+      contentType: "video/mp4",
+    });
     expect((await rotating.get("new"))?.equals(original)).toBe(true);
   });
 
   it("writes EXCLUSIVELY with the primary key", async () => {
     const inner = fakeDriver();
-    const rotating = new EncryptingObjectStorageDriver(inner, primary, previous);
+    const rotating = new EncryptingObjectStorageDriver(
+      inner,
+      primary,
+      previous,
+    );
     const original = Buffer.from("written during the window");
     await rotating.put({ key: "w", data: original, contentType: "video/mp4" });
 
@@ -185,7 +201,11 @@ describe("EncryptingObjectStorageDriver — key rotation (dual-read)", () => {
     inner.store.set("old", encryptMediaBuffer(original, previous));
 
     // During the window: readable via the previous key.
-    const rotating = new EncryptingObjectStorageDriver(inner, primary, previous);
+    const rotating = new EncryptingObjectStorageDriver(
+      inner,
+      primary,
+      previous,
+    );
     expect((await rotating.get("old"))?.equals(original)).toBe(true);
 
     // After retiring the previous key: primary-only can no longer read it.
@@ -199,14 +219,22 @@ describe("EncryptingObjectStorageDriver — key rotation (dual-read)", () => {
       "x",
       encryptMediaBuffer(Buffer.from("data"), "a-third-unrelated-key-000"),
     );
-    const rotating = new EncryptingObjectStorageDriver(inner, primary, previous);
+    const rotating = new EncryptingObjectStorageDriver(
+      inner,
+      primary,
+      previous,
+    );
     await expect(rotating.get("x")).resolves.toBeNull();
   });
 
   it("does not retry the previous key on a MALFORMED object (no wasted fallback)", async () => {
     const inner = fakeDriver();
     inner.store.set("short", Buffer.from([1, 2, 3])); // too short for iv+tag
-    const rotating = new EncryptingObjectStorageDriver(inner, primary, previous);
+    const rotating = new EncryptingObjectStorageDriver(
+      inner,
+      primary,
+      previous,
+    );
     await expect(rotating.get("short")).resolves.toBeNull();
   });
 });

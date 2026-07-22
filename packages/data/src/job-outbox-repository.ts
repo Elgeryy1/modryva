@@ -163,7 +163,10 @@ export class PrismaJobOutboxRepository implements JobOutboxRepository {
       where: {
         topic,
         OR: [
-          { state: "pending", OR: [{ runAfter: null }, { runAfter: { lte: now } }] },
+          {
+            state: "pending",
+            OR: [{ runAfter: null }, { runAfter: { lte: now } }],
+          },
           { state: "processing", lockedAt: { lt: staleBefore } },
         ],
       },
@@ -308,7 +311,9 @@ export class InMemoryJobOutboxRepository implements JobOutboxRepository {
           return false;
         }
         if (row.state === "pending") {
-          return row.runAfter === null || row.runAfter.getTime() <= now.getTime();
+          return (
+            row.runAfter === null || row.runAfter.getTime() <= now.getTime()
+          );
         }
         if (row.state === "processing") {
           return (row.lockedAt?.getTime() ?? 0) < staleBefore;

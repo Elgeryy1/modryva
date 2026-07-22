@@ -14,7 +14,12 @@ describe("InMemoryBattleEntriesRepository", () => {
     );
     expect(result.outcome).toBe("submitted");
 
-    const entries = await repo.listRoundEntries("t1", "c1", "playlist", "round-1");
+    const entries = await repo.listRoundEntries(
+      "t1",
+      "c1",
+      "playlist",
+      "round-1",
+    );
     expect(entries).toHaveLength(1);
     expect(entries[0]?.content).toBe("Bohemian Rhapsody");
     expect(entries[0]?.votes).toBe(0);
@@ -88,7 +93,12 @@ describe("InMemoryBattleEntriesRepository", () => {
     );
     expect(vote.outcome).toBe("voted");
 
-    const entries = await repo.listRoundEntries("t1", "c1", "playlist", "round-1");
+    const entries = await repo.listRoundEntries(
+      "t1",
+      "c1",
+      "playlist",
+      "round-1",
+    );
     expect(entries[0]?.votes).toBe(1);
   });
 
@@ -119,8 +129,22 @@ describe("InMemoryBattleEntriesRepository", () => {
 
   it("rejects a second vote from the same user in the same round", async () => {
     const repo = new InMemoryBattleEntriesRepository();
-    const a = await repo.submitEntry("t1", "c1", "playlist", "round-1", 111n, "A");
-    const b = await repo.submitEntry("t1", "c1", "playlist", "round-1", 222n, "B");
+    const a = await repo.submitEntry(
+      "t1",
+      "c1",
+      "playlist",
+      "round-1",
+      111n,
+      "A",
+    );
+    const b = await repo.submitEntry(
+      "t1",
+      "c1",
+      "playlist",
+      "round-1",
+      222n,
+      "B",
+    );
     if (a.outcome !== "submitted" || b.outcome !== "submitted") {
       throw new Error("expected submissions to succeed");
     }
@@ -149,7 +173,14 @@ describe("InMemoryBattleEntriesRepository", () => {
 
   it("rejects voting for an entry that belongs to a different (e.g. closed) round", async () => {
     const repo = new InMemoryBattleEntriesRepository();
-    const a = await repo.submitEntry("t1", "c1", "playlist", "round-1", 111n, "A");
+    const a = await repo.submitEntry(
+      "t1",
+      "c1",
+      "playlist",
+      "round-1",
+      111n,
+      "A",
+    );
     if (a.outcome !== "submitted") {
       throw new Error("expected submission to succeed");
     }
@@ -180,8 +211,22 @@ describe("InMemoryBattleEntriesRepository", () => {
 
   it("produces a votes-desc ranking input consistent with resolvePlaylistBattle", async () => {
     const repo = new InMemoryBattleEntriesRepository();
-    const a = await repo.submitEntry("t1", "c1", "playlist", "r1", 1n, "Song A");
-    const b = await repo.submitEntry("t1", "c1", "playlist", "r1", 2n, "Song B");
+    const a = await repo.submitEntry(
+      "t1",
+      "c1",
+      "playlist",
+      "r1",
+      1n,
+      "Song A",
+    );
+    const b = await repo.submitEntry(
+      "t1",
+      "c1",
+      "playlist",
+      "r1",
+      2n,
+      "Song B",
+    );
     if (a.outcome !== "submitted" || b.outcome !== "submitted") {
       throw new Error("expected submissions to succeed");
     }

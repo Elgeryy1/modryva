@@ -396,7 +396,9 @@ describe("evaluateDecision", () => {
         },
       });
       expect(result.decision).toBe("manual_review");
-      expect(result.reasonCode).toBe("same_person_mismatch_auto_decline_disabled");
+      expect(result.reasonCode).toBe(
+        "same_person_mismatch_auto_decline_disabled",
+      );
     });
 
     it("auto-declines a confirmed mismatch when allowAutomaticDecline is on", () => {

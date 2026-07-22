@@ -78,9 +78,10 @@ describe("session-crypto", () => {
     const oldSecret = "old-session-secret-1234567890";
     const newSecret = "new-session-secret-0987654321";
     const encrypted = encryptJoinRequestQueryId("jrq-fresh", newSecret);
-    expect(
-      decryptJoinRequestQueryId(encrypted, newSecret, oldSecret),
-    ).toEqual({ ok: true, queryId: "jrq-fresh" });
+    expect(decryptJoinRequestQueryId(encrypted, newSecret, oldSecret)).toEqual({
+      ok: true,
+      queryId: "jrq-fresh",
+    });
   });
 
   it("STOPS decrypting old-secret ciphertext once the previous secret is removed", () => {

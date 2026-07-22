@@ -463,10 +463,7 @@ export const evaluateDecision = (input: DecisionInput): DecisionResult => {
     // a non-numeric age while succeeding on the rest) must NOT fall through to
     // auto-approval — without a real age we cannot confirm in-range, so route
     // to STAFF (rule: age gate must never be silently defeated).
-    if (
-      signals.estimatedAgeMin === null ||
-      signals.estimatedAgeMax === null
-    ) {
+    if (signals.estimatedAgeMin === null || signals.estimatedAgeMax === null) {
       return {
         decision: "manual_review",
         reasonCode: "age_unverified",

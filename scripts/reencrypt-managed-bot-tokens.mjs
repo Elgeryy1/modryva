@@ -1,6 +1,6 @@
-import { config as loadDotenv } from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import { reencryptManagedBotTokens } from "@superbot/data";
+import { config as loadDotenv } from "dotenv";
 
 loadDotenv();
 
@@ -40,7 +40,8 @@ const die = (msg) => {
 
 if (!oldKey) die("MANAGED_BOT_TOKEN_KEY (current/old key) is not set");
 if (!newKey) die("MANAGED_BOT_TOKEN_KEY_NEW (new key) is not set");
-if (oldKey === newKey) die("MANAGED_BOT_TOKEN_KEY_NEW must differ from MANAGED_BOT_TOKEN_KEY");
+if (oldKey === newKey)
+  die("MANAGED_BOT_TOKEN_KEY_NEW must differ from MANAGED_BOT_TOKEN_KEY");
 
 const verifyToken = verify
   ? async (token) => {
@@ -76,7 +77,10 @@ try {
             }));
           },
           updateEncryptedToken: async (id, encryptedToken) => {
-            await tx.managedBot.update({ where: { id }, data: { encryptedToken } });
+            await tx.managedBot.update({
+              where: { id },
+              data: { encryptedToken },
+            });
           },
         },
         { oldKey, newKey, dryRun: !apply, verifyToken },

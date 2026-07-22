@@ -62,7 +62,9 @@ describe("InitDataController.verify enforces auth_date freshness", () => {
         TOKEN,
       );
       const controller = new InitDataController();
-      expect(controller.verify({ initData: fresh })).toMatchObject({ ok: true });
+      expect(controller.verify({ initData: fresh })).toMatchObject({
+        ok: true,
+      });
     });
   });
 });

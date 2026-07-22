@@ -1,11 +1,11 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
-import { prisma as defaultPrisma } from "./client.js";
 import {
   rankSpeedAnswers,
-  speedWinner,
   type SpeedAnswer,
   type SpeedRankEntry,
+  speedWinner,
 } from "@superbot/module-games";
+import { prisma as defaultPrisma } from "./client.js";
 
 /**
  * "Juego de velocidad" (/velocidad): one open question per chat, first
@@ -61,7 +61,10 @@ export interface SpeedGameRepository {
   ): Promise<SpeedRoundRecord>;
 
   /** The most recently started round for this chat, if it is still open. */
-  getOpenRound(tenantId: string, chatId: string): Promise<SpeedRoundRecord | null>;
+  getOpenRound(
+    tenantId: string,
+    chatId: string,
+  ): Promise<SpeedRoundRecord | null>;
 
   getRound(roundId: string): Promise<SpeedRoundRecord | null>;
 

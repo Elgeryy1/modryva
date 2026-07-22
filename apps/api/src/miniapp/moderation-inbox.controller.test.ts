@@ -489,9 +489,15 @@ describe("MiniappModerationInboxController", () => {
     });
 
     await expectHttpErrorAsync(
-      controller.resolve(reqWith(ctxFor("42")), "-100", "quarantine", foreign.id, {
-        action: "reject",
-      }),
+      controller.resolve(
+        reqWith(ctxFor("42")),
+        "-100",
+        "quarantine",
+        foreign.id,
+        {
+          action: "reject",
+        },
+      ),
       "resolve-failed",
     );
     // Still pending: the cross-chat mutation never ran.

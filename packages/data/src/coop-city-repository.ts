@@ -89,7 +89,11 @@ export class InMemoryCoopCityContributionRepository
 {
   private readonly rows = new Map<string, CoopCityContributionRecord>();
 
-  private key(tenantId: string, chatId: string, telegramUserId: bigint): string {
+  private key(
+    tenantId: string,
+    chatId: string,
+    telegramUserId: bigint,
+  ): string {
     return `${tenantId}:${chatId}:${telegramUserId}`;
   }
 

@@ -202,7 +202,9 @@ export class PrismaBattleEntriesRepository implements BattleEntriesRepository {
 }
 
 /** Store en memoria usado como default del constructor (tests). */
-export class InMemoryBattleEntriesRepository implements BattleEntriesRepository {
+export class InMemoryBattleEntriesRepository
+  implements BattleEntriesRepository
+{
   private readonly entries = new Map<
     string,
     {

@@ -64,7 +64,10 @@ export const createStorageDriverFromEnv = (
     }
     return driver;
   }
-  if (previous !== undefined && previous === env.GUARDIAN_MEDIA_ENCRYPTION_KEY) {
+  if (
+    previous !== undefined &&
+    previous === env.GUARDIAN_MEDIA_ENCRYPTION_KEY
+  ) {
     // Identical primary/previous is a no-op that silently masks a botched
     // rotation (it looks like a fallback exists when it does not). Reject it.
     throw new Error("guardian-media-previous-key-equals-primary");

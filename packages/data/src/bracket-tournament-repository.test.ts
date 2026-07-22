@@ -46,20 +46,14 @@ describe("InMemoryBracketTournamentRepository", () => {
 
   it("returns unknown-entrant when the name isn't in a pending match", async () => {
     const repo = new InMemoryBracketTournamentRepository();
-    const tournament = await repo.createTournament("t1", "c1", [
-      "Ana",
-      "Beto",
-    ]);
+    const tournament = await repo.createTournament("t1", "c1", ["Ana", "Beto"]);
     const outcome = await repo.recordWinner(tournament.id, "Nadie");
     expect(outcome.kind).toBe("unknown-entrant");
   });
 
   it("matches entrant names case-insensitively", async () => {
     const repo = new InMemoryBracketTournamentRepository();
-    const tournament = await repo.createTournament("t1", "c1", [
-      "Ana",
-      "Beto",
-    ]);
+    const tournament = await repo.createTournament("t1", "c1", ["Ana", "Beto"]);
     const outcome = await repo.recordWinner(tournament.id, "ana");
     expect(outcome.kind).toBe("champion");
   });

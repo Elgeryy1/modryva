@@ -1853,7 +1853,10 @@ export class HttpTelegramGateway implements TelegramGateway {
     }
 
     try {
-      const body = (await response.json()) as { ok?: unknown; result?: unknown };
+      const body = (await response.json()) as {
+        ok?: unknown;
+        result?: unknown;
+      };
       return { ok: true, skipped: false, result: body.result };
     } catch {
       // A 2xx whose body isn't parseable JSON (Telegram or an intermediary proxy

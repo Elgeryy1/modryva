@@ -86,11 +86,10 @@ export class PrismaAdminDecisionRepository implements AdminDecisionRepository {
 }
 
 /** Store en memoria usado como default del constructor (tests). */
-export class InMemoryAdminDecisionRepository implements AdminDecisionRepository {
-  private readonly decisions = new Map<
-    string,
-    Array<AdminDecisionEntry>
-  >();
+export class InMemoryAdminDecisionRepository
+  implements AdminDecisionRepository
+{
+  private readonly decisions = new Map<string, Array<AdminDecisionEntry>>();
 
   private key(tenantId: string, chatId: string): string {
     return `${tenantId}:${chatId}`;

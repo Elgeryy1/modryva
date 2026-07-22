@@ -2,8 +2,8 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   advanceBracket,
   BRACKET_BYE,
-  buildBracketRound,
   type BracketMatch,
+  buildBracketRound,
 } from "@superbot/module-games";
 import { prisma as defaultPrisma } from "./client.js";
 
@@ -43,8 +43,14 @@ export interface BracketTournamentRecord {
 
 export type BracketWinnerOutcome =
   | { readonly kind: "not-found" }
-  | { readonly kind: "already-done"; readonly tournament: BracketTournamentRecord }
-  | { readonly kind: "unknown-entrant"; readonly tournament: BracketTournamentRecord }
+  | {
+      readonly kind: "already-done";
+      readonly tournament: BracketTournamentRecord;
+    }
+  | {
+      readonly kind: "unknown-entrant";
+      readonly tournament: BracketTournamentRecord;
+    }
   | { readonly kind: "recorded"; readonly tournament: BracketTournamentRecord }
   | {
       readonly kind: "champion";
@@ -135,7 +141,11 @@ const splitByes = (matches: readonly BracketMatch[]): RoundState => {
 /** Round 1: pairs the raw entrant list via `buildBracketRound`. */
 const firstRound = (entrants: readonly string[]): RoundState => {
   if (entrants.length <= 1) {
-    return { pendingMatches: [], roundWinners: [], champion: entrants[0] ?? null };
+    return {
+      pendingMatches: [],
+      roundWinners: [],
+      champion: entrants[0] ?? null,
+    };
   }
   return splitByes(buildBracketRound(entrants));
 };
@@ -146,7 +156,11 @@ const nextRound = (winners: readonly string[]): RoundState => {
   if (matches.length === 0) {
     // advanceBracket() returns [] both when a single champion remains and
     // when there were 0 winners (shouldn't happen, but stays harmless).
-    return { pendingMatches: [], roundWinners: [], champion: winners[0] ?? null };
+    return {
+      pendingMatches: [],
+      roundWinners: [],
+      champion: winners[0] ?? null,
+    };
   }
   return splitByes(matches);
 };
@@ -204,15 +218,19 @@ const resolveWinner = (
 
   const needle = entrant.trim().toLowerCase();
   const matchIndex = record.pendingMatches.findIndex(
-    (match) => match.a.toLowerCase() === needle || match.b.toLowerCase() === needle,
+    (match) =>
+      match.a.toLowerCase() === needle || match.b.toLowerCase() === needle,
   );
-  const match = matchIndex === -1 ? undefined : record.pendingMatches[matchIndex];
+  const match =
+    matchIndex === -1 ? undefined : record.pendingMatches[matchIndex];
   if (!match) {
     return { outcome: { kind: "unknown-entrant", tournament: record } };
   }
 
   const winnerName = match.a.toLowerCase() === needle ? match.a : match.b;
-  const remainingMatches = record.pendingMatches.filter((_, i) => i !== matchIndex);
+  const remainingMatches = record.pendingMatches.filter(
+    (_, i) => i !== matchIndex,
+  );
   const roundWinners = [...record.roundWinners, winnerName];
 
   if (remainingMatches.length > 0) {
@@ -242,7 +260,10 @@ const resolveWinner = (
       champion: next.champion,
     };
     const tournament = { ...record, ...patch };
-    return { patch, outcome: { kind: "champion", tournament, champion: next.champion } };
+    return {
+      patch,
+      outcome: { kind: "champion", tournament, champion: next.champion },
+    };
   }
 
   const patch = {
@@ -252,7 +273,10 @@ const resolveWinner = (
     roundWinners: next.roundWinners,
     champion: null,
   };
-  return { patch, outcome: { kind: "recorded", tournament: { ...record, ...patch } } };
+  return {
+    patch,
+    outcome: { kind: "recorded", tournament: { ...record, ...patch } },
+  };
 };
 
 export class PrismaBracketTournamentRepository

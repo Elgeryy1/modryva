@@ -308,9 +308,7 @@ describe("matchBlocklist", () => {
       matchBlocklist("hoy vende muchos seguidores super baratos ya", multiStar),
     ).toEqual({ trigger: "vende*seguidores*baratos", reason: "spam" });
     // Same words, wrong order → no match (segments must appear in sequence).
-    expect(
-      matchBlocklist("baratos seguidores vende", multiStar),
-    ).toBeNull();
+    expect(matchBlocklist("baratos seguidores vende", multiStar)).toBeNull();
   });
 
   it("does not catastrophically backtrack on a wildcard-heavy trigger (ReDoS guard)", () => {
