@@ -39,6 +39,7 @@ import {
 import { processWeeklyRecap } from "./recap-processor.js";
 import { type FeedFetcher, processFeeds } from "./rss-processor.js";
 import { processTriviaAnnouncements } from "./trivia-announce-processor.js";
+import { assertPublicHttpUrl } from "./url-guard.js";
 import {
   processWebhookDeliveries,
   type WebhookFetcher,
@@ -47,11 +48,13 @@ import {
 const queueName = "superbot-jobs";
 
 const defaultWebhookFetcher: WebhookFetcher = async (url, init) => {
+  await assertPublicHttpUrl(url);
   const response = await fetch(url, init);
   return { ok: response.ok, status: response.status };
 };
 
 const defaultFeedFetcher: FeedFetcher = async (url) => {
+  await assertPublicHttpUrl(url);
   const response = await fetch(url, {
     headers: { accept: "application/rss+xml, application/atom+xml, text/xml" },
   });
