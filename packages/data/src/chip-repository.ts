@@ -863,6 +863,24 @@ export class PrismaChipRepository implements ChipRepository {
       }
       const { stake, challengerId } = duel;
       const opponentId = duel.opponentId;
+      const winnerId =
+        winner === 0 ? null : winner === 1 ? challengerId : opponentId;
+
+      // Atomically claim the rolling->settled transition BEFORE crediting any
+      // wallet. Without this, two concurrent settlers (the live win-settle and
+      // the worker's stale-duel refund) can both read status="rolling" under
+      // READ COMMITTED and both credit. Their ChipLedger rows use different
+      // reasons ("win" vs "refund"), so the (tenantId,userId,reason,refId)
+      // unique does NOT stop the double-pay — only this counted claim does.
+      // Mirrors settleCasinoBet; every other money mutator already does this.
+      const claimed = await tx.casinoDuel.updateMany({
+        where: { id: duelId, tenantId, status: "rolling" },
+        data: { status: "settled", winnerId },
+      });
+      if (claimed.count === 0) {
+        return null;
+      }
+
       const creditTx = async (
         uid: bigint,
         amount: number,
@@ -885,10 +903,6 @@ export class PrismaChipRepository implements ChipRepository {
       if (winner === 0) {
         await creditTx(challengerId, stake, "refund");
         await creditTx(opponentId, stake, "refund");
-        await tx.casinoDuel.update({
-          where: { id: duelId },
-          data: { status: "settled", winnerId: null },
-        });
         return {
           tie: true,
           challengerId,
@@ -898,14 +912,17 @@ export class PrismaChipRepository implements ChipRepository {
           payout: 0,
         };
       }
-      const winnerId = winner === 1 ? challengerId : opponentId;
+      const winnerUserId = winner === 1 ? challengerId : opponentId;
       const payout = Math.floor(stake * 2 * (1 - rake));
-      await creditTx(winnerId, payout, "win");
-      await tx.casinoDuel.update({
-        where: { id: duelId },
-        data: { status: "settled", winnerId },
-      });
-      return { tie: false, challengerId, opponentId, stake, winnerId, payout };
+      await creditTx(winnerUserId, payout, "win");
+      return {
+        tie: false,
+        challengerId,
+        opponentId,
+        stake,
+        winnerId: winnerUserId,
+        payout,
+      };
     });
   }
 
