@@ -301,7 +301,9 @@ export const buildWorkerServer = async () => {
     logger: { level: env.LOG_LEVEL },
   });
 
-  await app.register(cors, { origin: true });
+  // Internal server-to-server API, loopback-bound — no browser is a legitimate
+  // caller, so disable CORS instead of reflecting any Origin.
+  await app.register(cors, { origin: false });
   await app.register(helmet, { global: true });
 
   const RedisClient = IORedis as unknown as new (
@@ -365,7 +367,14 @@ export const buildWorkerServer = async () => {
       payload?: Record<string, unknown>;
     };
 
-    if (!queue || !body?.name) {
+    // Only known job names may be enqueued — otherwise this endpoint is an
+    // arbitrary-job-injection / resource-exhaustion lever. The loopback binding
+    // is the network control; this whitelist is the application-level one.
+    if (
+      !queue ||
+      !body?.name ||
+      !(expirationJobNames as readonly string[]).includes(body.name)
+    ) {
       return { ok: false, enqueued: false };
     }
 
