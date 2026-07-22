@@ -20,7 +20,7 @@
     "lint:copy": "node scripts/lint-copy.mjs",
     "format": "node node_modules/@biomejs/biome/bin/biome format --write .",
     "test": "node node_modules/vitest/vitest.mjs run",
-    "test:integration": "node node_modules/vitest/vitest.mjs run **/*.integration.test.ts",
+    "test:integration": "node node_modules/vitest/vitest.mjs run integration.test",
     "typecheck": "node scripts/run.mjs typecheck",
     "db:drift-check": "node node_modules/prisma/build/index.js migrate diff --from-migrations packages/data/prisma/migrations --to-schema-datamodel packages/data/prisma/schema.prisma --shadow-database-url \"$SHADOW_DATABASE_URL\" --exit-code",
     "db:generate": "node scripts/run.mjs db:generate",
