@@ -115,6 +115,19 @@ describe("getRuntimeEnv Guardian Verification vars", () => {
     ).toThrow("must never be true in production");
   });
 
+  it("requires GUARDIAN_MEDIA_ENCRYPTION_KEY when Guardian runs in production", () => {
+    expect(() =>
+      getRuntimeEnv({ NODE_ENV: "production", GUARDIAN_ENABLED: "1" }),
+    ).toThrow("GUARDIAN_MEDIA_ENCRYPTION_KEY");
+    // Guardian off, or non-production, needs no media key.
+    expect(getRuntimeEnv({ NODE_ENV: "production" }).GUARDIAN_ENABLED).toBe(
+      false,
+    );
+    expect(getRuntimeEnv({ GUARDIAN_ENABLED: "1" }).GUARDIAN_ENABLED).toBe(
+      true,
+    );
+  });
+
   it("accepts distinct primary + previous rotation keys", () => {
     const env = getRuntimeEnv({
       GUARDIAN_SESSION_SECRET: "primary-session-secret-123456",

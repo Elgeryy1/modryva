@@ -276,6 +276,23 @@ const runtimeEnvSchema = z
         message: "GUARDIAN_TEST_MODE must never be true in production",
       });
     }
+    // Fail closed: with Guardian on in production, the media key is mandatory.
+    // Without it, createStorageDriverFromEnv silently returns the RAW driver and
+    // captured face/gesture selfies are written unencrypted (a biometric-PII
+    // leak on disk/backup/bucket theft). Requiring it here stops the misconfig
+    // at startup instead of discovering it after images are already in the clear.
+    if (
+      env.NODE_ENV === "production" &&
+      env.GUARDIAN_ENABLED &&
+      env.GUARDIAN_MEDIA_ENCRYPTION_KEY === undefined
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["GUARDIAN_MEDIA_ENCRYPTION_KEY"],
+        message:
+          "GUARDIAN_MEDIA_ENCRYPTION_KEY is required when GUARDIAN_ENABLED is true in production (captured media would otherwise be stored unencrypted)",
+      });
+    }
     if (env.AI_GROQ_MODEL.toLowerCase().includes("70b")) {
       ctx.addIssue({
         code: "custom",
