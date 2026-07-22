@@ -101,7 +101,11 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "3002:3002"
+      # Bind to loopback only, like api (3001), worker (3004) and web (3003).
+      # The bot runs in polling mode, so nothing external needs host-level
+      # access; other services reach it in-cluster via bot:3002. On 0.0.0.0 the
+      # bot's Fastify server (webhook + /health) was reachable from the LAN.
+      - "127.0.0.1:3002:3002"
     volumes:
       # Live tunnel URL written by the urlsync sidecar (read-only for the bot).
       - tunnel_state:/state:ro
