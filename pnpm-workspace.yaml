@@ -5,12 +5,8 @@ packages:
 
 strictDepBuilds: false
 verifyDepsBeforeRun: false
-storeDir: "${TEMP}/pnpm-ultrabot-store"
-packageImportMethod: copy
 nodeLinker: hoisted
 confirmModulesPurge: false
-childConcurrency: 1
-networkConcurrency: 1
 
 onlyBuiltDependencies:
   - "@prisma/client"
