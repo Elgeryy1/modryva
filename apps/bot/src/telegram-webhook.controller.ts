@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import {
   Body,
   Controller,
@@ -15,6 +16,18 @@ import {
 import type { RuntimeEnv } from "@superbot/shared";
 import { BotUpdateService } from "./bot-update.service.js";
 import { PLATFORM_REPOSITORY, RUNTIME_ENV } from "./tokens.js";
+
+// Constant-time secret comparison: hashing both sides to a fixed 32-byte digest
+// lets timingSafeEqual run regardless of input length and leaks neither the
+// length nor the position of a byte mismatch (unlike a short-circuiting `!==`).
+const timingSafeStrEqual = (a: string | undefined, b: string): boolean => {
+  if (a === undefined) {
+    return false;
+  }
+  const left = crypto.createHash("sha256").update(a).digest();
+  const right = crypto.createHash("sha256").update(b).digest();
+  return crypto.timingSafeEqual(left, right);
+};
 
 @Controller("telegram/webhook/:botUsername")
 export class TelegramWebhookController {
@@ -47,7 +60,7 @@ export class TelegramWebhookController {
     if (
       managedSecret === null &&
       this.env.TELEGRAM_WEBHOOK_SECRET &&
-      secretToken !== this.env.TELEGRAM_WEBHOOK_SECRET
+      !timingSafeStrEqual(secretToken, this.env.TELEGRAM_WEBHOOK_SECRET)
     ) {
       throw new UnauthorizedException({
         ok: false,
