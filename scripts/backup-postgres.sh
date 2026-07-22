@@ -33,6 +33,14 @@ KEEP_WEEKLY_DAYS="${KEEP_WEEKLY_DAYS:-28}"
 #   BACKUP_OFFSITE_CMD='scp "$1" usuario@otro-equipo:/backups/'
 BACKUP_OFFSITE_CMD="${BACKUP_OFFSITE_CMD:-}"
 
+# Opcional pero MUY recomendado: cifra el dump ANTES de sacarlo del NAS. El dump
+# lleva PII (ids/usuarios de Telegram, edades autodeclaradas, motivos de baneo),
+# y la copia offsite lo manda a un tercero (R2/otro equipo). Recibe la ruta del
+# dump como $1 y DEBE imprimir la ruta del fichero cifrado que produjo.
+#   BACKUP_ENCRYPT_CMD='age -r age1... -o "$1.age" "$1" && echo "$1.age"'
+#   BACKUP_ENCRYPT_CMD='gpg --yes -e -r tu@correo -o "$1.gpg" "$1" && echo "$1.gpg"'
+BACKUP_ENCRYPT_CMD="${BACKUP_ENCRYPT_CMD:-}"
+
 DRY_RUN=0
 [ "${1:-}" = "--dry-run" ] && DRY_RUN=1
 
@@ -112,9 +120,22 @@ log "retencion: $PRUNED_D diarios y $PRUNED_W semanales eliminados"
 
 # --- 7. Fuera del NAS -----------------------------------------------------
 if [ -n "$BACKUP_OFFSITE_CMD" ]; then
+  SHIP="$DUMP"
+  if [ -n "$BACKUP_ENCRYPT_CMD" ]; then
+    log "cifrando el dump antes de sacarlo del NAS ..."
+    SHIP="$(sh -c "$BACKUP_ENCRYPT_CMD" _ "$DUMP")"
+    { [ -n "$SHIP" ] && [ -s "$SHIP" ]; } \
+      || die "el cifrado del backup fallo — NO se saca el dump en claro"
+    log "cifrado OK: $SHIP"
+  else
+    log "AVISO: BACKUP_ENCRYPT_CMD no configurado — el dump sale del NAS SIN CIFRAR."
+    log "AVISO: contiene PII (ids/usuarios de Telegram, edades, motivos de baneo)."
+    log "AVISO: define BACKUP_ENCRYPT_CMD (age/gpg) para cifrarlo antes de la copia."
+  fi
   log "copiando fuera del NAS ..."
-  sh -c "$BACKUP_OFFSITE_CMD" _ "$DUMP"
+  sh -c "$BACKUP_OFFSITE_CMD" _ "$SHIP"
   OFFSITE_RC=$?
+  [ "$SHIP" != "$DUMP" ] && rm -f "$SHIP"
   [ "$OFFSITE_RC" -eq 0 ] \
     || die "la copia offsite fallo con codigo $OFFSITE_RC — el dump LOCAL existe, pero sigues sin copia fuera del NAS"
   log "copia offsite OK"
