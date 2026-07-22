@@ -92,11 +92,16 @@ const INJECTION_PATTERNS: readonly RegExp[] = [
 ];
 
 const SECRET_PATTERNS: readonly RegExp[] = [
-  /\b(gsk_[A-Za-z0-9_-]{20,})\b/gu,
-  /\b(sk-or-v1-[A-Za-z0-9_-]{20,})\b/gu,
-  /\b(AI_[A-Z0-9_]*API_KEY|TELEGRAM_BOT_TOKEN|SESSION_SECRET|MANAGED_BOT_TOKEN_KEY)=\S+/gu,
-  /\b\d{8,}:[A-Za-z0-9_-]{20,}\b/gu,
-  /\b(ch|pi|cs|tok|key)_[A-Za-z0-9_-]{16,}\b/gu,
+  /\b(gsk_[A-Za-z0-9_-]{20,})\b/gu, // Groq
+  /\b(sk-or-v1-[A-Za-z0-9_-]{20,})\b/gu, // OpenRouter
+  /\bAIza[0-9A-Za-z_-]{35}\b/gu, // Google / Gemini API key
+  // Any FOO_SECRET / FOO_TOKEN / FOO_KEY / FOO_PASSWORD = value assignment. The
+  // previous fixed list missed GUARDIAN_SESSION_SECRET (a \b bug), plus
+  // CLOUDFLARE_TUNNEL_TOKEN, S3_SECRET_KEY, GUARDIAN_MEDIA_ENCRYPTION_KEY, ...
+  /\b[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|KEY|PASSWORD)=\S+/gu,
+  /\bpostgres(?:ql)?:\/\/[^\s]*@\S+/giu, // Postgres URL carrying credentials
+  /\b\d{8,}:[A-Za-z0-9_-]{20,}\b/gu, // Telegram bot token
+  /\b(ch|pi|cs|tok|key)_[A-Za-z0-9_-]{16,}\b/gu, // Stripe-ish tokens
 ];
 
 const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu;
