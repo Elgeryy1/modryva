@@ -1,0 +1,46 @@
+node_modules
+.next
+dist
+coverage
+.turbo
+.pnpm-store
+*.log
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.claude/scheduled_tasks.lock
+
+# Sesión de userbot GramJS. Equivale a la cuenta
+# entera: quien la tenga entra en tu Telegram sin código ni 2FA.
+.telegram-session
+miembros.csv
+
+# Carpeta hermana de la anterior: por el nombre guarda sesiones. Fuera de git
+# por si acaso: ignorarla no cuesta nada y subirla podria costar la cuenta.
+sesiones/
+
+# Volcados de personas. Llevan IPs atadas a
+# cuentas de Telegram: dato personal, y encima de TODOS los grupos a la vez.
+usuarios.csv
+usuarios-por-grupo.csv
+
+# Guardian Verification local media (local storage driver dev default) —
+# never commit captured face/gesture video, even in a test-mode run.
+/data/guardian-media
+
+# Volcado operativo del incidente de media perdida. No lleva imagenes, pero si
+# el manifiesto que las localiza: id de registro + ruta en el bucket de cada
+# foto de verificacion facial. Mismo criterio que /data/guardian-media.
+media-lost-*.csv
+
+# Obsidian per-machine UI state (which panes are open, last cursor position).
+.ub-tmp.mjs
+.env.testbot
+
+# Copias de seguridad y ficheros .bak. `backups/` contiene volcados de la base
+# de datos de produccion (PII real): un `git add -A` los commitearia, porque
+# hasta hoy estaban sin seguir Y sin ignorar. Los `.bak-*` son copias del
+# arbol que ademas viajaban dentro de las imagenes docker por el `COPY apps`.
+backups/
+*.bak-*

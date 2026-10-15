@@ -1,0 +1,11 @@
+-- El barrido de presentaciones ya no expulsa: publica una ficha en la sala de
+-- STAFF y espera a que una persona pulse un boton. Esta columna es lo que
+-- distingue "se le acaba de pasar el plazo" de "ya hay una ficha abierta con su
+-- nombre", y es lo unico que impide que el barrido republique la misma ficha
+-- cada minuto.
+--
+-- Nula por defecto y sin backfill a proposito: las filas que ya existen tienen
+-- el plazo corriendo y les toca pasar por el circuito nuevo como a todos.
+--
+-- Aditiva. No toca ninguna columna ni fila existente.
+ALTER TABLE "introduction_pending" ADD COLUMN     "reportedAt" TIMESTAMP(3);

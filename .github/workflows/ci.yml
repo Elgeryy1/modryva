@@ -1,0 +1,175 @@
+name: ci
+
+# Antes disparaba solo en `main`, una rama que NO EXISTE en este repo (las reales son
+# `master` y `feature/**`). Resultado: el workflow estaba escrito pero no se había
+# ejecutado NUNCA. Verificado el 2026-07-20 — ver docs/PLAN-ENDURECIMIENTO-2026-07-20.md §1.1.
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - main # por si se renombra la rama por defecto en el futuro
+      - "feature/**"
+      - "compat/**"
+      # El trabajo de saneamiento vive en su propia familia de ramas. Sin esto,
+      # los push a saneamiento/** no disparaban el CI y solo se veria al abrir
+      # el PR — justo cuando ya es tarde para enterarse barato.
+      - "saneamiento/**"
+
+# Un push nuevo sobre la misma rama cancela el run anterior: evita quemar minutos
+# revisando commits ya superados.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://superbot:superbot@127.0.0.1:5432/superbot?schema=public
+      REDIS_URL: redis://127.0.0.1:6379
+      TELEGRAM_BOT_TOKEN: test-token
+      TELEGRAM_WEBHOOK_SECRET: test-secret
+      TELEGRAM_APP_URL: http://localhost:3003
+      SESSION_SECRET: test-session-secret
+      NODE_ENV: test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: superbot
+          POSTGRES_PASSWORD: superbot
+          POSTGRES_DB: superbot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U superbot -d superbot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # Aqui habia un paso "Apuntar el store de pnpm al temp del runner" que
+      # exportaba TEMP=$RUNNER_TEMP a GITHUB_ENV. Existia porque
+      # pnpm-workspace.yaml fijaba storeDir a "${TEMP}/pnpm-ultrabot-store" para
+      # el dev en la unidad SMB de Windows: en un runner Linux TEMP no existe,
+      # `pnpm store path` resolvia a un sitio no escribible y la cache de
+      # setup-node fallaba antes de instalar nada.
+      #
+      # El workspace ya vive en un disco local, se quito ese storeDir y pnpm usa
+      # su store por defecto, que `cache: pnpm` de setup-node resuelve solo. El
+      # paso sobraba, y un paso que compensa una config que ya no existe es
+      # justo lo que se pudre sin que nadie lo note.
+      #
+      # Si alguna vez vuelve el storeDir con "${TEMP}", vuelve tambien este paso
+      # — y ojo: iba en un step y no en el bloque `env:` del job porque el
+      # contexto `runner` no esta disponible ahi. Usarlo igualmente hizo que
+      # GitHub rechazara el fichero ENTERO y cada run terminase en 0s sin crear
+      # un solo job, cosa que por fuera se lee igual que un CI que falla y por
+      # eso paso tres dias desapercibido.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      # El servicio postgres de este workflow existía desde el principio y NADIE
+      # se conectaba a él: no había un solo test de integración. Los pasos de
+      # abajo lo aprovechan.
+
+      # Impide que vuelva a ocurrir el drift de `db push`. `migrate diff` sale
+      # con código 2 si el schema declara algo que las migraciones no crean, así
+      # que tocar schema.prisma sin añadir su migración rompe el CI.
+      # Contexto: el 2026-07-20 había 21 tablas declaradas y no migradas, y
+      # `migrate deploy` sobre una base limpia daba un esquema INCOMPLETO.
+      - name: Migrations cover the schema (no db-push drift)
+        env:
+          SHADOW_DATABASE_URL: postgresql://superbot:superbot@127.0.0.1:5432/shadow
+        run: |
+          PGPASSWORD=superbot psql -h 127.0.0.1 -U superbot -d superbot \
+            -c 'CREATE DATABASE shadow;'
+          pnpm db:drift-check
+
+      # Prueba que el esquema se reconstruye ENTERO desde cero. Es el criterio de
+      # recuperación ante desastre: sin esto, un backup restaurado sobre un
+      # esquema incompleto no devuelve el servicio.
+      - name: Schema rebuilds from scratch
+        run: pnpm db:deploy
+
+      # Los tests de integración corren contra Postgres REAL. Cubren lo que los
+      # fakes en memoria no pueden: transacciones, constraints únicos y alcance
+      # entre tenants.
+      - name: Integration tests (real Postgres)
+        env:
+          TEST_DATABASE_URL: postgresql://superbot:superbot@127.0.0.1:5432/superbot?schema=public
+        run: pnpm test:integration
+
+      - name: Build
+        run: pnpm build
+
+  # El servicio de vision de Guardian es Python, y hasta ahora quedaba FUERA del
+  # CI entero: sus tests existian y no los ejecutaba nadie mas que quien se
+  # acordara de hacerlo a mano. Es codigo que decide si una verificacion facial
+  # pasa o no, asi que no puede ser el unico rincon sin red.
+  #
+  # Va en un job aparte y no como paso del de arriba a proposito: instalar
+  # mediapipe y opencv tarda varios minutos, y no tiene por que retrasar el
+  # lint y el typecheck de TypeScript, que son los que fallan a diario.
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: services/guardian-vision-analyzer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/guardian-vision-analyzer/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      # Los tests son de funciones puras contra arrays de numpy: no descargan
+      # modelos ni necesitan una cara real. Ver el conftest, que explica que
+      # queda dentro y que queda fuera del alcance a proposito.
+      - name: Test
+        run: python -m pytest tests -q
+
+      # Comprobacion de sintaxis de todo el paquete. No hay configuracion de
+      # ruff ni de mypy en el servicio, asi que esto es lo que se puede exigir
+      # hoy sin inventarse un estandar que nadie acordo: que todo compile.
+      - name: Compile check
+        run: python -m compileall -q app scripts

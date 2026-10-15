@@ -1,0 +1,61 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "modules/*"
+
+strictDepBuilds: false
+verifyDepsBeforeRun: false
+confirmModulesPurge: false
+
+# nodeLinker hoisted NO es una preferencia: los scripts publicos invocan los
+# binarios por ruta directa (`node node_modules/typescript/bin/tsc`, ver
+# scripts/run.mjs y package.json). Con el linker aislado por defecto esas rutas
+# no existen y se rompe lint, typecheck, test y build a la vez.
+nodeLinker: hoisted
+
+# storeDir y packageImportMethod: copy existian para sobrevivir a la unidad Z:
+# (UNC/SMB), que no soporta symlinks ni hardlinks. El workspace ya vive en C:
+# local, asi que valen los defaults: hardlink desde el store global persistente.
+# Si el proyecto vuelve a una ruta de red, hay que restaurarlos.
+
+# Esto NO es por la unidad de red, es por el ancho de banda de esta conexion.
+# Con networkConcurrency alto, los tarballs grandes (prisma, next, @next/swc,
+# sharp, @mediapipe/tasks-vision, el cli de biome) se reparten la banda, tardan
+# mas de los 60s de fetchTimeout por defecto y el install muere entero con
+# "error (23) The operation was aborted due to timeout". Pocas descargas a la
+# vez y mucho margen de tiempo es lo que hace que `pnpm install` termine.
+networkConcurrency: 2
+fetchTimeout: 600000
+
+# Pin vulnerable transitive deps above their fixed versions (from pnpm audit):
+#   fast-uri <3.1.4  host confusion (GHSA-4c8g-83qw-93j6, GHSA-v2hh-gcrm-f6hx)
+#   sharp    <0.35.0 libvips CVEs   (GHSA-f88m-g3jw-g9cj)
+#   postcss  <8.5.10 CSS XSS        (GHSA-qx2v-qp2m-jg93)
+overrides:
+  fast-uri: "^3.1.4"
+  sharp: "^0.35.0"
+  postcss: "^8.5.10"
+
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - "@prisma/engines"
+  - "esbuild"
+  - "msgpackr-extract"
+  - "prisma"
+  - "sharp"
+
+# Lo genera `pnpm install` solo, y es la puerta real de los scripts de
+# instalacion: sin un true explicito aqui, pnpm los ignora aunque el paquete
+# este en onlyBuiltDependencies. Los tres en "set this to true or false" nunca
+# se decidieron y siguen sin decidirse a proposito — son opcionales de ws y no
+# hacen falta. Para revisarlos: `pnpm approve-builds`.
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  bufferutil: set this to true or false
+  es5-ext: set this to true or false
+  esbuild: true
+  msgpackr-extract: true
+  prisma: true
+  sharp: true
+  utf-8-validate: set this to true or false

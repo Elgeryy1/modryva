@@ -1,0 +1,3886 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantStatus {
+  active
+  suspended
+  archived
+}
+
+enum ModuleStatus {
+  enabled
+  disabled
+  degraded
+}
+
+enum AuditActorType {
+  user
+  bot
+  system
+  integration
+}
+
+enum SanctionKind {
+  ban
+  mute
+  restrict
+  warn
+  delete
+  lock
+}
+
+enum CaptchaMode {
+  button
+  text
+  math
+  custom
+}
+
+enum PolicyAction {
+  allow
+  warn
+  delete
+  mute
+  ban
+  review
+}
+
+// --- Guardian Verification (join-request camera verification) ---
+
+enum GuardianMode {
+  off
+  manual
+  assisted
+  auto
+  strict
+}
+
+enum GuardianCaptureMode {
+  photo
+  video
+  video_with_fallback
+}
+
+enum GuardianChallengeDifficulty {
+  basic
+  normal
+  strict
+}
+
+enum GuardianSessionStatus {
+  pending
+  miniapp_opened
+  capturing
+  analyzing
+  awaiting_retry
+  resolved
+  expired
+  cancelled
+}
+
+enum GuardianDecision {
+  auto_approve
+  manual_review
+  retry
+  auto_decline
+  technical_failure
+}
+
+// Shared status vocabulary for every pluggable AI provider (liveness, age,
+// synthetic-media, provenance). `not_evaluated` = provider not configured at
+// all; `unavailable` = configured but the call failed/timed out; `uncertain` =
+// the provider ran but could not commit to a verdict. Never fabricate a score
+// for `not_evaluated`/`unavailable`/`failed`.
+enum GuardianProviderStatus {
+  success
+  uncertain
+  unavailable
+  failed
+  not_evaluated
+}
+
+enum GuardianProvenanceStatus {
+  c2pa_valid_ai_declared
+  c2pa_valid_other
+  c2pa_invalid
+  c2pa_not_found
+  c2pa_unavailable
+}
+
+enum GuardianStaffAction {
+  approve
+  decline
+  retry
+  delete_media
+  mark_false_positive
+  expel
+}
+
+enum ManagedBotStatus {
+  pending
+  active
+  suspended
+  revoked
+  failed
+}
+
+enum ManagedBotTemplate {
+  community
+  creator
+  support
+  business
+  custom
+}
+
+enum PlatformRole {
+  platform_owner
+  promo_admin
+  bot_factory_admin
+  support_admin
+  auditor
+}
+
+enum EntitlementKind {
+  managed_bot_slot
+  pro_trial
+  agency_pack
+}
+
+enum EntitlementSource {
+  promo
+  payment
+  manual
+}
+
+model Tenant {
+  id        String       @id @default(cuid())
+  name      String
+  slug      String       @unique
+  status    TenantStatus @default(active)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  bots         ManagedBot[]
+  chats        Chat[]
+  users        AppUser[]
+  roles        Role[]
+  flags        FeatureFlag[]
+  modules      ModuleState[]
+  auditLogs    AuditLog[]
+  security     SecurityAlert[]
+  settings     ChatSetting[]
+  cases        ModerationCase[]
+  memberships  Membership[]
+  topics       Topic[]
+  roleBindings RoleBinding[]
+  promoCodes   PromoCode[]
+  entitlements Entitlement[]
+
+  @@map("tenants")
+}
+
+model ManagedBot {
+  id                          String             @id @default(cuid())
+  tenantId                    String
+  telegramBotId               BigInt?            @unique
+  username                    String             @unique
+  displayName                 String
+  ownerTelegramId             BigInt?
+  template                    ManagedBotTemplate @default(community)
+  status                      ManagedBotStatus   @default(active)
+  encryptedToken              String?
+  tokenFingerprint            String?
+  tokenLastRotatedAt          DateTime?
+  webhookSecretHash           String?
+  plan                        String             @default("free")
+  entitlementId               String?
+  createdViaPromoRedemptionId String?
+  lastActivatedAt             DateTime?
+  lastError                   String?
+  expiryWarnedAt              DateTime?
+  isPrimary                   Boolean            @default(false)
+  createdAt                   DateTime           @default(now())
+  updatedAt                   DateTime           @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([ownerTelegramId])
+  @@index([status])
+  @@map("managed_bots")
+}
+
+model PlatformRoleAssignment {
+  id                  String       @id @default(cuid())
+  telegramUserId      BigInt
+  role                PlatformRole
+  grantedByTelegramId BigInt?
+  revokedAt           DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@index([telegramUserId])
+  @@index([role])
+  @@map("platform_role_assignments")
+}
+
+model PlatformUserBan {
+  id                  String    @id @default(cuid())
+  telegramUserId      BigInt    @unique
+  reason              String
+  bannedByTelegramId  BigInt
+  bannedAt            DateTime  @default(now())
+  expiresAt           DateTime?
+  revokedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([revokedAt])
+  @@index([expiresAt])
+  @@map("platform_user_bans")
+}
+
+model PromoCode {
+  id                  String             @id @default(cuid())
+  tenantId            String?
+  codeHash            String             @unique
+  codePrefix          String
+  kind                EntitlementKind
+  template            ManagedBotTemplate @default(community)
+  quantity            Int                @default(1)
+  maxUses             Int                @default(1)
+  usedCount           Int                @default(0)
+  expiresAt           DateTime?
+  revokedAt           DateTime?
+  note                String?
+  createdByTelegramId BigInt
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  tenant      Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  redemptions PromoRedemption[]
+
+  @@index([tenantId])
+  @@index([createdByTelegramId])
+  @@map("promo_codes")
+}
+
+model PromoRedemption {
+  id                   String   @id @default(cuid())
+  promoCodeId          String
+  redeemedByTelegramId BigInt
+  entitlementId        String
+  redeemedAt           DateTime @default(now())
+
+  promoCode   PromoCode   @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  entitlement Entitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+
+  @@unique([promoCodeId, redeemedByTelegramId])
+  @@index([redeemedByTelegramId])
+  @@map("promo_redemptions")
+}
+
+model Entitlement {
+  id                  String             @id @default(cuid())
+  tenantId            String?
+  ownerTelegramId     BigInt
+  kind                EntitlementKind
+  template            ManagedBotTemplate @default(community)
+  quantity            Int                @default(1)
+  usedQuantity        Int                @default(0)
+  source              EntitlementSource
+  sourceRef           String?
+  expiresAt           DateTime?
+  revokedAt           DateTime?
+  createdByTelegramId BigInt?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  tenant      Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  redemptions PromoRedemption[]
+
+  @@index([tenantId])
+  @@index([ownerTelegramId])
+  @@index([kind])
+  @@map("entitlements")
+}
+
+model AppUser {
+  id             String   @id @default(cuid())
+  tenantId       String?
+  telegramUserId BigInt   @unique
+  username       String?
+  languageCode   String?
+  displayName    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant      Tenant?         @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  memberships Membership[]
+  preferences UserPreference?
+  bindings    RoleBinding[]
+  warnings    Warning[]
+  sanctions   Sanction[]
+  appeals     Appeal[]
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+model Chat {
+  id             String   @id @default(cuid())
+  tenantId       String
+  telegramChatId BigInt
+  type           String
+  title          String?
+  username       String?
+  isForum        Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  memberships Membership[]
+  topics      Topic[]
+  settings    ChatSetting[]
+  modules     ModuleState[]
+  cases       ModerationCase[]
+
+  @@unique([tenantId, telegramChatId])
+  @@index([tenantId])
+  @@map("chats")
+}
+
+model Membership {
+  id        String    @id @default(cuid())
+  tenantId  String
+  chatId    String
+  userId    String
+  role      String    @default("member")
+  joinedAt  DateTime  @default(now())
+  leftAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chat   Chat    @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user   AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, chatId])
+  @@index([tenantId, userId])
+  @@map("memberships")
+}
+
+model Topic {
+  id              String   @id @default(cuid())
+  tenantId        String
+  chatId          String
+  telegramTopicId Int
+  title           String?
+  createdAt       DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chat   Chat   @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, telegramTopicId])
+  @@index([tenantId])
+  @@map("topics")
+}
+
+model UserPreference {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  locale        String   @default("es")
+  timezone      String   @default("Europe/Madrid")
+  dateFormat    String   @default("dd/MM/yyyy")
+  accessibility Json?
+  notifications Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bindings RoleBinding[]
+
+  @@unique([tenantId, name])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@map("permissions")
+}
+
+model RoleBinding {
+  id        String    @id @default(cuid())
+  tenantId  String
+  roleId    String
+  userId    String
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@index([tenantId, roleId])
+  @@map("role_bindings")
+}
+
+model NativeAdminSnapshot {
+  id         String   @id @default(cuid())
+  tenantId   String
+  chatId     String
+  userId     String
+  payload    Json
+  capturedAt DateTime @default(now())
+
+  @@index([tenantId, chatId])
+  @@map("native_admin_snapshots")
+}
+
+model Approval {
+  id        String   @id @default(cuid())
+  tenantId  String
+  actorId   String?
+  action    String
+  status    String   @default("pending")
+  payload   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, status])
+  @@map("approvals")
+}
+
+model FeatureFlag {
+  id        String   @id @default(cuid())
+  tenantId  String
+  key       String
+  enabled   Boolean  @default(false)
+  payload   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+  @@map("feature_flags")
+}
+
+model ModuleState {
+  id        String       @id @default(cuid())
+  tenantId  String
+  chatId    String?
+  moduleKey String
+  status    ModuleStatus @default(disabled)
+  version   String?
+  config    Json?
+  updatedAt DateTime     @updatedAt
+  createdAt DateTime     @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chat   Chat?  @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, chatId, moduleKey])
+  @@index([tenantId, moduleKey])
+  @@map("module_states")
+}
+
+model UpdateInbox {
+  id          String    @id @default(cuid())
+  tenantId    String?
+  botKey      String
+  updateId    BigInt
+  payload     Json
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([botKey, updateId])
+  @@index([tenantId, botKey])
+  // Por donde barre el job de retencion, cada minuto. Sin este indice la
+  // consulta "que hay mas viejo que X" es un escaneo completo de la tabla por
+  // la que entra cada update de Telegram.
+  @@index([createdAt])
+  @@map("update_inbox")
+}
+
+model CallbackInbox {
+  id          String    @id @default(cuid())
+  tenantId    String?
+  callbackId  String    @unique
+  payload     Json
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId])
+  @@map("callback_inbox")
+}
+
+model IdempotencyKey {
+  id        String    @id @default(cuid())
+  tenantId  String?
+  namespace String
+  key       String
+  payload   Json?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+
+  @@unique([namespace, key])
+  @@index([tenantId])
+  @@map("idempotency_keys")
+}
+
+model JobOutbox {
+  id        String    @id @default(cuid())
+  tenantId  String?
+  topic     String
+  payload   Json
+  state     String    @default("pending")
+  runAfter  DateTime?
+  lockedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([tenantId, state])
+  @@map("job_outbox")
+}
+
+model AuditLog {
+  id           String         @id @default(cuid())
+  tenantId     String?
+  actorType    AuditActorType @default(system)
+  actorId      String?
+  action       String
+  resourceType String?
+  resourceId   String?
+  payload      Json?
+  createdAt    DateTime       @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  // Por donde barre el job de retencion. El indice de arriba NO sirve: empieza
+  // por tenantId, y la barrida pregunta "que hay mas viejo que X" sin filtrar
+  // por tenant, asi que se lo saltaria y escanearia la tabla entera.
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model SecurityAlert {
+  id             String    @id @default(cuid())
+  tenantId       String?
+  severity       String    @default("info")
+  code           String
+  message        String
+  payload        Json?
+  acknowledgedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, severity])
+  @@map("security_alerts")
+}
+
+model SecretRef {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  name      String
+  provider  String
+  reference String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, name])
+  @@map("secrets_refs")
+}
+
+model PrivacyRequest {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  userId    String?
+  kind      String
+  status    String   @default("open")
+  payload   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, status])
+  @@map("privacy_requests")
+}
+
+model Backup {
+  id          String    @id @default(cuid())
+  tenantId    String?
+  kind        String
+  status      String    @default("pending")
+  storageRef  String?
+  checksum    String?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([tenantId, status])
+  @@map("backups")
+}
+
+model ChatSetting {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String?
+  key       String
+  value     Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chat   Chat?  @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, chatId, key])
+  @@map("chat_settings")
+}
+
+model ModerationCase {
+  id            String   @id @default(cuid())
+  tenantId      String
+  chatId        String?
+  caseNumber    Int
+  subjectUserId String?
+  status        String   @default("open")
+  reason        String?
+  payload       Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chat   Chat?  @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, caseNumber])
+  @@index([tenantId, chatId])
+  @@map("moderation_cases")
+}
+
+model Sanction {
+  id        String       @id @default(cuid())
+  tenantId  String
+  caseId    String?
+  userId    String
+  kind      SanctionKind
+  status    String       @default("active")
+  reason    String?
+  startsAt  DateTime     @default(now())
+  endsAt    DateTime?
+  payload   Json?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, status])
+  @@map("sanctions")
+}
+
+model Warning {
+  id        String    @id @default(cuid())
+  tenantId  String
+  userId    String
+  caseId    String?
+  reason    String?
+  weight    Int       @default(1)
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+  expiredAt DateTime?
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@index([expiresAt, expiredAt])
+  @@map("warnings")
+}
+
+model Report {
+  id                String   @id @default(cuid())
+  tenantId          String
+  chatId            String?
+  reporterUserId    String?
+  subjectTelegramId BigInt
+  reason            String?
+  status            String   @default("open")
+  createdAt         DateTime @default(now())
+
+  @@index([tenantId, status])
+  @@map("reports")
+}
+
+model Evidence {
+  id         String   @id @default(cuid())
+  tenantId   String
+  caseId     String
+  type       String
+  storageRef String?
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, caseId])
+  @@map("evidence")
+}
+
+model Appeal {
+  id         String   @id @default(cuid())
+  tenantId   String
+  caseId     String
+  userId     String
+  status     String   @default("open")
+  message    String
+  resolution String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, caseId, status])
+  @@map("appeals")
+}
+
+model SpamProfile {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String?
+  name      String
+  threshold Int      @default(0)
+  config    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, chatId, name])
+  @@map("spam_profiles")
+}
+
+model AntifloodConfig {
+  id              String   @id @default(cuid())
+  tenantId        String
+  chatId          String   @unique
+  enabled         Boolean  @default(false)
+  windowSeconds   Int      @default(10)
+  messageLimit    Int      @default(5)
+  action          String   @default("mute")
+  muteSeconds     Int      @default(300)
+  cooldownSeconds Int      @default(30)
+  exempt          Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("antiflood_configs")
+}
+
+model AntifloodEvent {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  messageCount   Int
+  windowSeconds  Int
+  action         String
+  createdAt      DateTime @default(now())
+
+  @@index([tenantId, chatId, createdAt])
+  @@index([tenantId, telegramUserId])
+  @@map("antiflood_events")
+}
+
+model AntiraidConfig {
+  id                String    @id @default(cuid())
+  tenantId          String
+  chatId            String    @unique
+  enabled           Boolean   @default(false)
+  windowSeconds     Int       @default(30)
+  joinLimit         Int       @default(5)
+  mode              String    @default("observe")
+  newAccountAgeDays Int       @default(0)
+  underAttackUntil  DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@map("antiraid_configs")
+}
+
+model AntiraidEvent {
+  id            String   @id @default(cuid())
+  tenantId      String
+  chatId        String
+  joinCount     Int
+  windowSeconds Int
+  mode          String
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, chatId, createdAt])
+  @@map("antiraid_events")
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String
+  name      String
+  content   String
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([chatId, name])
+  @@index([tenantId, chatId])
+  @@map("notes")
+}
+
+model StaffNote {
+  id               String   @id @default(cuid())
+  tenantId         String
+  chatId           String
+  authorTelegramId BigInt?
+  authorName       String?
+  text             String
+  createdAt        DateTime @default(now())
+
+  @@index([tenantId, chatId])
+  @@map("staff_notes")
+}
+
+model EconomyWallet {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  userTelegramId BigInt
+  balance        Int      @default(0)
+  lastEarnedMs   BigInt   @default(0)
+  /// Juego justo (commit-reveal), igual que en ChipWallet: `serverSeed` es
+  /// SECRETO hasta que se rota, `serverSeedHash` es el compromiso publico que se
+  /// enseña antes de apostar, y `nonce` sube en cada apuesta para que todo
+  /// resultado se pueda recomputar desde (serverSeed, clientSeed, nonce).
+  ///
+  /// Los tres textos son opcionales porque la tabla ya tenia filas cuando se
+  /// añadieron: una cartera que solo se uso para hablar no tiene semillas hasta
+  /// que su dueño apuesta por primera vez. `ensureBettingWallet` las siembra
+  /// entonces. Un default fijo aqui seria peor que nulo — todo el mundo
+  /// compartiendo semilla es exactamente lo que el sistema existe para evitar.
+  serverSeed     String?
+  serverSeedHash String?
+  clientSeed     String?
+  nonce          Int      @default(0)
+  /// Saldo a salvo de robos: la "caja fuerte". Cuenta dentro de `balance` —no
+  /// es un segundo monedero—, y lo unico que hace es marcar cuanto de ese saldo
+  /// no puede tocar `/robar`. Se guarda aparte precisamente para que un robo no
+  /// tenga que adivinar que parte era intocable.
+  protectedBalance Int    @default(0)
+  /// Cuanto cabe en esa caja fuerte. Sin un tope, `protectedBalance` no seria
+  /// una caja fuerte sino un interruptor de inmunidad: bastaria con guardarlo
+  /// todo para no poder ser robado nunca, y el robo dejaria de existir en
+  /// cuanto la gente se diera cuenta.
+  ///
+  /// El default 0 significa "el basico del grupo", no "no cabe nada": el tope
+  /// real lo calcula quien lee, sumando lo que se haya ampliado en la tienda.
+  /// Guardado asi, las filas que ya existian no necesitan tocarse.
+  vaultLimit     Int      @default(0)
+  /// Saldo sin fondo: la cartera paga siempre y el numero NO se mueve.
+  ///
+  /// No es "un saldo muy alto". `balance` es un `integer`, asi que un saldo muy
+  /// alto tiene techo (2.147.483.647) y ademas se gasta: la cuenta baja hasta
+  /// que un dia no llega. Con esta bandera el saldo se congela —ni se cobra ni
+  /// se abona— y lo que cuenta el movimiento es el libro mayor, que sigue
+  /// anotandolo todo. Por eso el numero que enseña `/saldo` deja de ser un
+  /// saldo y pasa a ser un adorno; la verdad esta en `economy_ledger`.
+  ///
+  /// Congelar el abono tambien es lo que quita el desbordamiento de en medio:
+  /// una cartera que nunca suma no puede reventar con "integer out of range".
+  ///
+  /// Es un privilegio del propietario y va cartera a cartera (tenant + chat +
+  /// persona), nunca por usuario global: la economia vive por grupo y una
+  /// bandera global regalaria el privilegio en grupos donde nadie lo pidio.
+  unlimited      Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tenantId, chatId, userTelegramId])
+  @@map("economy_wallets")
+}
+
+/// Libro mayor de la moneda del grupo: una fila por cada movimiento de saldo.
+///
+/// Existe por dos razones distintas y las dos importan. La primera es
+/// idempotencia: el unique de abajo hace que reintentar una concesion no la
+/// pague dos veces. La segunda es que un saldo a secas no puede responder a
+/// "quien me ha robado", que es LA pregunta que va a llegar el primer dia que
+/// alguien pierda monedas mientras no miraba.
+///
+/// `refId` es lo que distingue un movimiento de otro dentro del mismo `reason`:
+/// el dia UTC para la ganancia diaria, un uuid para donaciones y robos, que son
+/// irrepetibles por definicion. Ojo al usarlo: en Postgres dos NULL no colisionan,
+/// asi que un `refId` nulo desactiva la proteccion en vez de reforzarla.
+model EconomyLedger {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  delta          Int
+  reason         String
+  refId          String?
+  createdAt      DateTime @default(now())
+
+  @@unique([tenantId, chatId, telegramUserId, reason, refId])
+  @@index([tenantId, chatId, telegramUserId])
+  @@map("economy_ledger")
+}
+
+/// Lo que cada persona tiene comprado en la tienda del grupo.
+///
+/// Una fila por (persona, objeto) y no una por compra: la segunda navaja suma
+/// usos y el segundo escudo alarga el que ya habia. Con una fila por compra
+/// habria que decidir cual se gasta primero en cada golpe, y esa es una
+/// pregunta que no le interesa a nadie y que se puede responder mal.
+///
+/// `uses` y `expiresAt` conviven porque hay dos formas de tener un objeto: los
+/// consumibles se gastan (usos, sin fecha) y los temporales caducan (fecha,
+/// usos a 1). Cual es cual lo sabe el catalogo de @superbot/module-games, no
+/// esta tabla: los precios y las duraciones se retocan, y una copia aqui seria
+/// una copia que se queda vieja.
+model UserItem {
+  id             String    @id @default(cuid())
+  tenantId       String
+  chatId         String
+  userTelegramId BigInt
+  itemId         String
+  uses           Int       @default(1)
+  expiresAt      DateTime?
+  /// El texto de los objetos que lo piden: el mote, el nombre nuevo de la
+  /// moneda. Nulo en todo lo demas.
+  payload        String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([tenantId, chatId, userTelegramId, itemId])
+  @@index([tenantId, chatId, userTelegramId])
+  @@map("user_items")
+}
+
+/// Cada compra, para poder responder a "quien le ha comprado eso a quien".
+///
+/// El libro mayor de la economia ya anota el cobro, pero solo sabe que salieron
+/// 5.000 monedas por "shop-buy". Cuando alguien pregunte quien le ha comprado
+/// la mordaza —y va a preguntarlo el primer dia— la respuesta esta aqui.
+///
+/// De aqui salen ademas dos numeros que no se guardan en ningun otro sitio: lo
+/// que cuesta la fianza (el doble de la mordaza que te comiste) y si a esa
+/// persona le compraron otra hace demasiado poco. Los dos se derivan de estas
+/// filas a proposito, igual que las esperas del robo salen del libro mayor: un
+/// contador aparte es un sitio mas donde el numero puede contradecir a los
+/// hechos.
+model ShopPurchase {
+  id               String   @id @default(cuid())
+  tenantId         String
+  chatId           String
+  userTelegramId   BigInt
+  itemId           String
+  price            Int
+  /// A quien iba dirigido, en los que se disparan contra alguien. Nulo en el
+  /// resto.
+  targetTelegramId BigInt?
+  createdAt        DateTime @default(now())
+
+  @@index([tenantId, chatId, createdAt])
+  @@index([tenantId, chatId, targetTelegramId, createdAt])
+  @@map("shop_purchases")
+}
+
+model Incident {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String
+  title     String
+  status    String   @default("investigando")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, chatId])
+  @@map("incidents")
+}
+
+model CoopMissionState {
+  id          String   @id @default(cuid())
+  tenantId    String
+  chatId      String
+  goal        Int      @default(0)
+  progress    Int      @default(0)
+  description String   @default("")
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, chatId])
+  @@map("coop_missions")
+}
+
+model GratitudePoint {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  userTelegramId BigInt
+  points         Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tenantId, chatId, userTelegramId])
+  @@index([tenantId, chatId])
+  @@map("gratitude_points")
+}
+
+model CustomCommand {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String
+  name      String
+  response  String
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([chatId, name])
+  @@index([tenantId, chatId])
+  @@map("custom_commands")
+}
+
+model Filter {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String
+  trigger   String
+  response  String
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([chatId, trigger])
+  @@index([tenantId, chatId])
+  @@map("filters")
+}
+
+model Poll {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String
+  question  String
+  options   Json
+  closed    Boolean  @default(false)
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  votes PollVote[]
+
+  @@index([tenantId, chatId])
+  @@map("polls")
+}
+
+model PollVote {
+  id             String   @id @default(cuid())
+  pollId         String
+  telegramUserId BigInt
+  optionIndex    Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  poll Poll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, telegramUserId])
+  @@index([pollId])
+  @@map("poll_votes")
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String
+  productId String
+  title     String
+  amount    Int
+  currency  String   @default("XTR")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, productId])
+  @@index([tenantId, chatId])
+  @@map("products")
+}
+
+model Invoice {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  productId      String
+  telegramUserId BigInt
+  payload        String
+  amount         Int
+  currency       String   @default("XTR")
+  status         String   @default("created")
+  createdAt      DateTime @default(now())
+
+  @@index([tenantId, chatId])
+  @@map("invoices")
+}
+
+model Payment {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  productId      String
+  chargeId       String   @unique
+  amount         Int
+  currency       String   @default("XTR")
+  createdAt      DateTime @default(now())
+
+  @@index([tenantId, chatId])
+  @@map("payments")
+}
+
+model AiConversation {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  messages AiMessage[]
+
+  @@unique([chatId, telegramUserId])
+  @@index([tenantId, chatId])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String
+  content        String
+  createdAt      DateTime @default(now())
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("ai_messages")
+}
+
+model AiUsage {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  provider       String
+  tokensIn       Int      @default(0)
+  tokensOut      Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([tenantId, chatId, createdAt])
+  @@map("ai_usage")
+}
+
+model AiMemory {
+  id             String   @id @default(cuid())
+  tenantId       String
+  scope          String
+  subjectId      String
+  chatId         String?
+  telegramUserId BigInt?
+  key            String
+  value          String
+  source         String   @default("user")
+  confidence     Float    @default(0.8)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tenantId, scope, subjectId, key])
+  @@index([tenantId, scope, subjectId])
+  @@index([tenantId, chatId])
+  @@index([tenantId, telegramUserId])
+  @@map("ai_memories")
+}
+
+model GameSession {
+  id               String   @id @default(cuid())
+  tenantId         String
+  chatId           String
+  kind             String
+  status           String   @default("open")
+  payload          Json
+  correctIndex     Int
+  winnerTelegramId BigInt?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([tenantId, chatId, status])
+  @@map("game_sessions")
+}
+
+model GameScore {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  points         Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([chatId, telegramUserId])
+  @@index([chatId, points])
+  @@map("game_scores")
+}
+
+model FileAsset {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  fileUniqueId   String
+  fileId         String
+  kind           String
+  mimeType       String?
+  fileSize       Int      @default(0)
+  fileName       String?
+  scanStatus     String   @default("pending")
+  createdAt      DateTime @default(now())
+
+  @@unique([tenantId, fileUniqueId])
+  @@index([tenantId, chatId])
+  @@map("file_assets")
+}
+
+model Webhook {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String
+  url       String
+  secret    String
+  active    Boolean  @default(true)
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, chatId])
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id          String    @id @default(cuid())
+  tenantId    String
+  webhookId   String
+  url         String
+  secret      String
+  event       String
+  body        String
+  status      String    @default("pending")
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  deliveredAt DateTime?
+
+  @@index([status, createdAt])
+  @@index([tenantId])
+  @@map("webhook_deliveries")
+}
+
+model Feed {
+  id             String    @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramChatId BigInt
+  url            String
+  lastItemGuid   String?
+  status         String    @default("active")
+  createdBy      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  lastPolledAt   DateTime?
+  /// Consecutive failed polls. Reset to 0 by any successful poll, so it counts
+  /// a feed that is broken rather than one that blipped. Past a threshold the
+  /// feed is paused: a dead URL was being fetched every minute for 23 days.
+  consecutiveFailures Int @default(0)
+  /// Why the last poll failed, kept where a human can read it without going
+  /// through logs. Cleared on success.
+  lastError           String?
+
+  @@unique([chatId, url])
+  @@index([status])
+  @@index([tenantId, chatId])
+  @@map("feeds")
+}
+
+model Reminder {
+  id             String    @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramChatId BigInt
+  telegramUserId BigInt
+  text           String
+  status         String    @default("pending")
+  runAt          DateTime
+  createdAt      DateTime  @default(now())
+  firedAt        DateTime?
+
+  @@index([status, runAt])
+  @@index([tenantId, chatId])
+  @@map("reminders")
+}
+
+model Task {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  title          String
+  done           Boolean  @default(false)
+  number         Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([chatId, number])
+  @@index([tenantId, chatId, done])
+  @@map("tasks")
+}
+
+model AfkStatus {
+  id             String   @id @default(cuid())
+  tenantId       String
+  telegramUserId BigInt
+  username       String?
+  reason         String?
+  since          DateTime @default(now())
+
+  @@unique([tenantId, telegramUserId])
+  @@index([tenantId, username])
+  @@map("afk_statuses")
+}
+
+model Ticket {
+  id                 String    @id @default(cuid())
+  tenantId           String
+  chatId             String
+  reporterTelegramId BigInt
+  subject            String
+  status             String    @default("open")
+  priority           String    @default("normal")
+  assigneeTelegramId BigInt?
+  number             Int
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  closedAt           DateTime?
+
+  messages TicketMessage[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, chatId, status])
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id             String   @id @default(cuid())
+  ticketId       String
+  telegramUserId BigInt
+  body           String
+  createdAt      DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("ticket_messages")
+}
+
+model ScheduledPost {
+  id             String    @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramChatId BigInt
+  text           String
+  status         String    @default("pending")
+  runAt          DateTime
+  createdBy      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  sentAt         DateTime?
+
+  /// Anuncio con foto: se manda con sendPhoto y `text` pasa a ser el pie.
+  ///
+  /// Se guarda el file_id que devuelve Telegram, NO los bytes. Un anuncio que
+  /// se repite cada pocas horas no tiene por que volver a subir la misma imagen
+  /// cada vez, y el file_id ya vive en los servidores de Telegram. Ojo: un
+  /// file_id esta atado al bot que lo genero, asi que solo vale para el suyo.
+  photoFileId    String?
+  /// "HTML" o "Markdown" para el texto/pie. NULL = texto plano, como siempre.
+  parseMode      String?
+  /// Teclado inline tal cual lo espera la Bot API (botones de enlace, etc).
+  replyMarkup    Json?
+  /// Minutos hasta la siguiente publicacion. NULL = un solo disparo, que era
+  /// el unico comportamiento posible hasta ahora: se enviaba, se marcaba `sent`
+  /// y ahi moria. Con valor, el propio envio reprograma el siguiente y la fila
+  /// se queda en `pending` para siempre.
+  repeatMinutes  Int?
+
+  @@index([status, runAt])
+  @@index([tenantId, chatId])
+  @@map("scheduled_posts")
+}
+
+model Giveaway {
+  id               String   @id @default(cuid())
+  tenantId         String
+  chatId           String
+  prize            String
+  status           String   @default("open")
+  seed             String?
+  winnerTelegramId BigInt?
+  createdBy        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  entries GiveawayEntry[]
+
+  @@index([tenantId, chatId])
+  @@map("giveaways")
+}
+
+model GiveawayEntry {
+  id             String   @id @default(cuid())
+  giveawayId     String
+  telegramUserId BigInt
+  createdAt      DateTime @default(now())
+
+  giveaway Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
+
+  @@unique([giveawayId, telegramUserId])
+  @@index([giveawayId])
+  @@map("giveaway_entries")
+}
+
+model ActivityDaily {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String
+  day       String
+  messages  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([chatId, day])
+  @@index([tenantId, chatId])
+  @@map("activity_daily")
+}
+
+model UserActivity {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  username       String?
+  messages       Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([chatId, telegramUserId])
+  @@index([chatId])
+  @@map("user_activity")
+}
+
+/// A privacy-minimized profile used by the member-insights Mini App.  It
+/// stores membership observation and activity aggregates only: never message
+/// text, attachments, phones, names, or Telegram profile data beyond an
+/// optional public username.
+model MemberActivityProfile {
+  id                       String   @id @default(cuid())
+  tenantId                 String
+  chatId                   String
+  telegramUserId           BigInt
+  username                 String?
+  membershipObservedAt     DateTime
+  historyScannedAt         DateTime?
+  historicalMessages       Int      @default(0)
+  historicalLastMessageAt  DateTime?
+  liveMessages             Int      @default(0)
+  liveLastMessageAt        DateTime?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([tenantId, chatId, telegramUserId])
+  @@index([tenantId, chatId])
+  @@index([tenantId, chatId, historicalLastMessageAt])
+  @@map("member_activity_profiles")
+}
+
+model InviteStat {
+  id                String   @id @default(cuid())
+  tenantId          String
+  chatId            String
+  inviterTelegramId BigInt
+  count             Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([chatId, inviterTelegramId])
+  @@index([tenantId, chatId])
+  @@index([chatId, count])
+  @@map("invite_stats")
+}
+
+model ReputationProfile {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  points         Int      @default(0)
+  xp             Int      @default(0)
+  // Rango alcanzado por actividad y antiguedad (vip/titan/veterano/leyenda).
+  // Nulo mientras no llegue al primero. Solo sube: ver isPromotion en ranks.ts.
+  rank           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([chatId, telegramUserId])
+  @@index([tenantId, chatId])
+  @@index([chatId, points])
+  @@map("reputation_profiles")
+}
+
+model WelcomeConfig {
+  id          String   @id @default(cuid())
+  tenantId    String
+  chatId      String   @unique
+  welcomeText String?
+  goodbyeText String?
+  rulesText   String?
+  // GroupHelp-style welcome: optional photo + inline buttons.
+  // null = no photo; otherwise the sendPhoto type ("jpg" | "png" | "webp").
+  // Doubles as the "has media" signal so a config read never drags the bytes.
+  welcomeMediaType String?
+  // WelcomeButtonRow[] — inline keyboard rows: [{ type, text, url? }][].
+  welcomeButtons   Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("welcome_configs")
+}
+
+/// Raw bytes for a group's welcome photo, kept out of WelcomeConfig so the
+/// frequently-read config row stays small. The bot re-uploads these bytes to
+/// Telegram on each welcome (joins are infrequent, so no file_id cache needed).
+model WelcomeMedia {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String   @unique
+  mimeType  String
+  // base64-encoded image bytes (matches Telegram sendPhoto's imageBase64 param,
+  // so the bot re-sends it verbatim with no encode/decode round-trip).
+  data      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("welcome_media")
+}
+
+model ContentLockConfig {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String   @unique
+  locked    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("content_lock_configs")
+}
+
+model BlocklistEntry {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String
+  trigger   String
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@unique([chatId, trigger])
+  @@index([tenantId, chatId])
+  @@map("blocklist_entries")
+}
+
+model BlocklistConfig {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String   @unique
+  mode      String   @default("delete")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("blocklist_configs")
+}
+
+model WarnPolicyConfig {
+  id         String   @id @default(cuid())
+  tenantId   String
+  chatId     String   @unique
+  warnLimit  Int      @default(3)
+  warnMode   String   @default("mute")
+  durationMs BigInt?
+  expireMs   BigInt?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("warn_policy_configs")
+}
+
+model GroupHygieneConfig {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  chatId             String   @unique
+  cleanService       Boolean  @default(false)
+  cleanWelcome       Boolean  @default(false)
+  // Deletes the "/casino" a member typed once the bot has answered, so the chat
+  // shows the bot's panel instead of the plumbing that produced it.
+  cleanCommands      Boolean  @default(false)
+  nightMode          Boolean  @default(false)
+  nightStart         Int      @default(23)
+  nightEnd           Int      @default(7)
+  welcomeMute        Boolean  @default(false)
+  autoApprove        Boolean  @default(false)
+  rtlFilter          Boolean  @default(false)
+  cjkFilter          Boolean  @default(false)
+  language           String   @default("es")
+  // Auto-bans new members already listed in CAS (Combot Anti-Spam), a public
+  // shared ban list — same source Rose/Combot use.
+  blockKnownSpammers Boolean  @default(false)
+  // Modryva "passive mode": master switch to make the bot do ONLY Guardian
+  // verification + games in this group (so it can coexist with a dedicated
+  // moderation bot like GroupHelp). When on, every autonomous sanction, cleanup
+  // and unsolicited message is silenced AND the moderation commands are
+  // disabled. The three category flags give granular control when NOT fully
+  // passive; they default true so existing groups behave exactly as before.
+  passiveMode        Boolean  @default(false)
+  autoModeration     Boolean  @default(true)
+  autoCleanup        Boolean  @default(true)
+  autoMessages       Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("group_hygiene_configs")
+}
+
+model GroupMembershipGate {
+  id                     String   @id @default(cuid())
+  tenantId               String
+  chatId                 String
+  // Telegram id of THIS (gated) chat — lets a chat_member update on the
+  // required chat find its way back here without another repository.
+  telegramChatId         BigInt
+  requiredTelegramChatId BigInt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([chatId, requiredTelegramChatId])
+  @@index([tenantId])
+  @@index([chatId])
+  @@index([requiredTelegramChatId])
+  @@map("group_membership_gates")
+}
+
+model VerifiedUser {
+  id             String   @id @default(cuid())
+  tenantId       String
+  telegramUserId BigInt
+  createdAt      DateTime @default(now())
+
+  @@unique([tenantId, telegramUserId])
+  @@map("verified_users")
+}
+
+model PanelEditState {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  telegramUserId      BigInt
+  field               String
+  groupTelegramChatId BigInt
+  updatedAt           DateTime @updatedAt
+
+  @@unique([tenantId, telegramUserId])
+  @@map("panel_edit_states")
+}
+
+model FeedbackConfig {
+  id                  String   @id @default(cuid())
+  tenantId            String   @unique
+  staffTelegramChatId BigInt
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("feedback_configs")
+}
+
+model FeedbackUser {
+  id             String   @id @default(cuid())
+  tenantId       String
+  telegramUserId BigInt
+  createdAt      DateTime @default(now())
+
+  @@unique([tenantId, telegramUserId])
+  @@index([tenantId])
+  @@map("feedback_users")
+}
+
+model PostReaction {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  messageId      Int
+  telegramUserId BigInt
+  emoji          String
+  createdAt      DateTime @default(now())
+
+  @@unique([chatId, messageId, telegramUserId])
+  @@index([chatId, messageId])
+  @@map("post_reactions")
+}
+
+model Federation {
+  id                String   @id @default(cuid())
+  tenantId          String
+  fedId             String   @unique
+  name              String
+  ownerTelegramId   BigInt
+  logTelegramChatId BigInt?
+  subscribedFedId   String?
+  createdAt         DateTime @default(now())
+
+  @@index([tenantId])
+  @@map("federations")
+}
+
+model FederationChat {
+  id             String   @id @default(cuid())
+  fedId          String
+  chatId         String   @unique
+  telegramChatId BigInt
+  createdAt      DateTime @default(now())
+
+  @@index([fedId])
+  @@map("federation_chats")
+}
+
+model FederationBan {
+  id                String   @id @default(cuid())
+  fedId             String
+  subjectTelegramId BigInt
+  reason            String?
+  actorTelegramId   BigInt?
+  createdAt         DateTime @default(now())
+
+  @@unique([fedId, subjectTelegramId])
+  @@index([fedId])
+  @@index([subjectTelegramId])
+  @@map("federation_bans")
+}
+
+model FederationAdmin {
+  id             String   @id @default(cuid())
+  fedId          String
+  telegramUserId BigInt
+  createdAt      DateTime @default(now())
+
+  @@unique([fedId, telegramUserId])
+  @@index([fedId])
+  @@map("federation_admins")
+}
+
+model OwnerNetworkConfig {
+  id                String   @id @default(cuid())
+  tenantId          String
+  fedId             String   @unique
+  logTelegramChatId BigInt?
+  welcomeMode       String   @default("per_group")
+  welcomeText       String?
+  goodbyeText       String?
+  rulesMode         String   @default("per_group")
+  rulesText         String?
+  membershipMode    String   @default("off")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("owner_network_configs")
+}
+
+model OwnerNetworkGroupRole {
+  id        String   @id @default(cuid())
+  tenantId  String
+  fedId     String
+  chatId    String
+  role      String
+  label     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([fedId, chatId, role])
+  @@index([tenantId])
+  @@index([fedId])
+  @@index([chatId])
+  @@map("owner_network_group_roles")
+}
+
+model OwnerNetworkRoute {
+  id           String   @id @default(cuid())
+  tenantId     String
+  fedId        String
+  sourceChatId String?
+  sourceKey    String
+  eventKind    String
+  targetChatId String
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([fedId, sourceKey, eventKind])
+  @@index([tenantId])
+  @@index([fedId])
+  @@index([sourceChatId])
+  @@index([targetChatId])
+  @@map("owner_network_routes")
+}
+
+model OwnerNetworkConfigSnapshot {
+  id        String   @id @default(cuid())
+  tenantId  String
+  fedId     String
+  createdBy String
+  reason    String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([fedId])
+  @@map("owner_network_config_snapshots")
+}
+
+model OwnerNetworkUserRisk {
+  id              String   @id @default(cuid())
+  tenantId        String
+  fedId           String
+  telegramUserId  BigInt
+  score           Int      @default(0)
+  deletedCount    Int      @default(0)
+  reportCount     Int      @default(0)
+  quarantineCount Int      @default(0)
+  linkCount       Int      @default(0)
+  sanctionCount   Int      @default(0)
+  chatIds         String[] @default([])
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@unique([fedId, telegramUserId])
+  @@index([tenantId])
+  @@index([fedId])
+  @@map("owner_network_user_risks")
+}
+
+model OwnerNetworkUserRole {
+  id             String   @id @default(cuid())
+  tenantId       String
+  fedId          String
+  telegramUserId BigInt
+  role           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([fedId, telegramUserId])
+  @@index([tenantId])
+  @@index([fedId])
+  @@map("owner_network_user_roles")
+}
+
+model OwnerNetworkUserNote {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  fedId                 String
+  subjectTelegramUserId BigInt
+  authorTelegramUserId  BigInt
+  note                  String
+  createdAt             DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([fedId, subjectTelegramUserId])
+  @@map("owner_network_user_notes")
+}
+
+model OwnerNetworkBadge {
+  id             String   @id @default(cuid())
+  tenantId       String
+  fedId          String
+  telegramUserId BigInt
+  badge          String
+  awardedAt      DateTime @default(now())
+
+  @@unique([fedId, telegramUserId, badge])
+  @@index([tenantId])
+  @@index([fedId])
+  @@map("owner_network_badges")
+}
+
+model OwnerNetworkMission {
+  id             String    @id @default(cuid())
+  tenantId       String
+  fedId          String
+  telegramUserId BigInt
+  kind           String
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([fedId, telegramUserId, kind])
+  @@index([tenantId])
+  @@index([fedId])
+  @@map("owner_network_missions")
+}
+
+model OwnerNetworkWelcomeButtons {
+  id          String   @id @default(cuid())
+  tenantId    String
+  chatId      String   @unique
+  rules       Boolean  @default(true)
+  otherGroups Boolean  @default(true)
+  support     Boolean  @default(true)
+  verify      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("owner_network_welcome_buttons")
+}
+
+model OwnerNetworkAutomation {
+  id        String   @id @default(cuid())
+  tenantId  String
+  fedId     String
+  chatId    String?
+  name      String
+  trigger   Json
+  condition Json
+  action    Json
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([fedId])
+  @@index([chatId])
+  @@map("owner_network_automations")
+}
+
+model OwnerNetworkEntitlement {
+  id            String    @id @default(cuid())
+  tenantId      String
+  fedId         String    @unique
+  plan          String    @default("free")
+  maxChats      Int       @default(3)
+  premiumUntil  DateTime?
+  grantedByCode String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@map("owner_network_entitlements")
+}
+
+model OwnerNetworkPremiumCode {
+  id         String    @id @default(cuid())
+  code       String    @unique
+  plan       String    @default("pro")
+  maxChats   Int       @default(10)
+  days       Int       @default(30)
+  createdBy  String
+  redeemedBy String?
+  redeemedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@map("owner_network_premium_codes")
+}
+
+// Gates real AI usage (Groq/Gemini/OpenRouter) per Telegram chat (group or DM),
+// independent of the global AI_ENABLED master switch. Generated by the platform
+// owner in the /platform Mini App, redeemed once per chat via /aicode <code>.
+model AiAccessCode {
+  id                  String    @id @default(cuid())
+  codeHash            String    @unique
+  codePrefix          String
+  days                Int
+  note                String?
+  createdByTelegramId BigInt
+  redeemedByChatId    BigInt?
+  redeemedAt          DateTime?
+  createdAt           DateTime  @default(now())
+
+  @@index([createdByTelegramId])
+  @@map("ai_access_codes")
+}
+
+model AiChatAccess {
+  id            String   @id @default(cuid())
+  chatId        BigInt   @unique
+  expiresAt     DateTime
+  grantedByCode String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("ai_chat_access")
+}
+
+// Personal AI access: unlike AiChatAccess (one grant per group), this follows
+// the paying Telegram user across every chat (group or DM) they use the bot in.
+model AiUserAccess {
+  id             String   @id @default(cuid())
+  telegramUserId BigInt   @unique
+  expiresAt      DateTime
+  grantedBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("ai_user_access")
+}
+
+// Tracks the live Telegram Stars subscription behind a chat or personal AI
+// grant, keyed by (scope, targetId) so a renewal (a fresh successful_payment
+// Telegram sends automatically every subscription_period) can be matched back
+// without needing to correlate charge ids across billing cycles.
+model AiSubscription {
+  id               String   @id @default(cuid())
+  scope            String
+  targetId         BigInt
+  telegramUserId   BigInt
+  lastChargeId     String
+  currentPeriodEnd DateTime
+  canceled         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([scope, targetId])
+  @@map("ai_subscriptions")
+}
+
+model CaptchaConfig {
+  id             String      @id @default(cuid())
+  tenantId       String
+  chatId         String      @unique
+  enabled        Boolean     @default(false)
+  mode           CaptchaMode @default(button)
+  timeoutSeconds Int         @default(120)
+  maxAttempts    Int         @default(3)
+  failAction     String      @default("ban")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([tenantId])
+  @@map("captcha_configs")
+}
+
+model CaptchaSession {
+  id             String      @id @default(cuid())
+  tenantId       String
+  chatId         String
+  userId         String?
+  telegramUserId BigInt
+  mode           CaptchaMode
+  challenge      String
+  answerHash     String?
+  answerSalt     String?
+  status         String      @default("pending")
+  attempts       Int         @default(0)
+  maxAttempts    Int         @default(3)
+  failAction     String      @default("ban")
+  expiresAt      DateTime
+  resolvedAt     DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([tenantId, chatId, status])
+  @@index([tenantId, telegramUserId, status])
+  @@map("captcha_sessions")
+}
+
+model PolicyRule {
+  id        String       @id @default(cuid())
+  tenantId  String
+  chatId    String?
+  name      String
+  scope     String       @default("chat")
+  action    PolicyAction
+  pattern   String?
+  config    Json?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([tenantId, chatId, name])
+  @@map("policy_rules")
+}
+
+// --- Guardian Verification: per-chat config + join-request verification flow ---
+
+/// Mini App opens we can attribute to a person OUTSIDE the verification flow —
+/// mainly the games app. Recorded so the multi-account check also sees members
+/// who play but never (re)verified, which is most of them.
+///
+/// One row per (bot, person, IP): a repeat open from the same address bumps the
+/// counter instead of adding a row, so the table tracks distinct connections
+/// rather than growing with every app launch. Scoped by botUsername, which is
+/// what keeps a managed child bot's visitors out of another bot's roster.
+///
+/// Kept indefinitely, by the owner's explicit decision, and disclosed in the
+/// group description. The lastSeenAt index exists anyway so a retention sweep
+/// stays cheap if that decision ever changes.
+model MiniappVisit {
+  id             String   @id @default(cuid())
+  botUsername    String
+  telegramUserId BigInt
+  username       String?
+  firstName      String?
+  lastName       String?
+  ip             String
+  countryCode    String?
+  /// Raw Telegram id of the group the Mini App was opened FOR, when the deep
+  /// link carried one. Null when it did not (the portable games hub).
+  ///
+  /// This is what keeps one community's roster from showing another's members:
+  /// a single bot serves many groups, so scoping visits by bot alone would put
+  /// the IP of someone from an unrelated group in front of these admins.
+  groupTelegramId BigInt?
+  /// Which Mini App the person opened, e.g. "games".
+  surface        String
+  visits         Int      @default(1)
+  firstSeenAt    DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+
+  @@unique([botUsername, telegramUserId, ip])
+  @@index([botUsername, ip])
+  @@index([groupTelegramId])
+  @@index([lastSeenAt])
+  @@map("miniapp_visits")
+}
+
+model GuardianVerificationSettings {
+  id            String       @id @default(cuid())
+  tenantId      String
+  chatId        String       @unique
+  enabled       Boolean      @default(false)
+  mode          GuardianMode @default(off)
+  // Raw Telegram chat id of the STAFF chat/channel (not necessarily a chat we
+  // track in `Chat` — often a private staff-only channel the bot posts to).
+  staffChatId   BigInt?
+  staffThreadId Int?
+  /// Additional STAFF rooms the report is mirrored to, as
+  /// `[{ "chatId": "-100...", "threadId": 6 }]` (chatId a STRING: these are
+  /// larger than a JS number survives). The primary staffChatId above stays the
+  /// first destination; this is purely extra reach.
+  ///
+  /// JSON rather than a table because it is a short, whole-value list edited as
+  /// one field in the Mini App — the same reasoning as allowedCountries. What
+  /// DOES get a table is where each copy actually landed
+  /// (VerificationStaffReport), because those rows are written per send and read
+  /// back one by one by retention.
+  extraStaffChats Json?
+  // When true, STAFF report photos are kept in the chat forever (the send path
+  // stamps no retention deadline, so the cleanup job never deletes them).
+  keepStaffPhotos Boolean @default(false)
+  /// Decline the join request of someone whose verification simply ran out —
+  /// they opened it and never finished, or never opened it at all.
+  ///
+  /// Separate from allowAutomaticDecline on purpose. That one acts on a
+  /// JUDGEMENT ("the AI thinks this person fails"), where a false positive
+  /// throws out a real member. This one acts on the absence of any judgement at
+  /// all, so it cannot be wrong about a person — and declining is not banning:
+  /// it frees them to request again, which is exactly what Telegram forbids
+  /// while a request sits pending. Wanting one without the other is normal.
+  declineOnExpiry Boolean @default(false)
+
+  captureMode         GuardianCaptureMode         @default(video_with_fallback)
+  challengeDifficulty GuardianChallengeDifficulty @default(normal)
+  // Array of enabled challenge kinds (face/hands/sequences); null = defaults.
+  enabledChallenges   Json?
+
+  maxAttempts         Int @default(3)
+  sessionTtlSeconds   Int @default(600)
+  mediaRetentionHours Int @default(72)
+
+  autoApproveThreshold  Float @default(0.85)
+  manualReviewThreshold Float @default(0.55)
+  livenessMinimum       Float @default(0.6)
+  gestureMinimum        Float @default(0.6)
+  replayRiskMaximum     Float @default(0.4)
+  syntheticRiskMaximum  Float @default(0.4)
+
+  requireSingleFace Boolean @default(true)
+  estimateAge       Boolean @default(false)
+  minimumAge        Int?
+  maximumAge        Int?
+  // 1 = single photo (default). 2 = double verification: a second photo with
+  // a DIFFERENT requested gesture, cross-checked by AI to confirm it's the
+  // same person as the first — never silently skipped when requested (see
+  // decision-engine.ts's samePersonStatus gate).
+  requiredPhotos Int @default(1)
+
+  // ISO 3166-1 alpha-2 codes (e.g. ["ES","PT"]). Empty = no restriction.
+  // Resolved from the person's IP (via Cloudflare's CF-IPCountry header —
+  // never phone number or GPS location) captured silently on the Mini App's
+  // first request, before any consent/photo UI — see decision-engine.ts's
+  // countryCode gate and GuardianVerifyController.getSession.
+  allowedCountries String[] @default([])
+
+  allowAutomaticDecline    Boolean @default(false)
+  sendApprovedCasesToStaff Boolean @default(true)
+  protectStaffContent      Boolean @default(true)
+  locale                   String  @default("es")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("guardian_verification_settings")
+}
+
+// One row per Telegram `chat_join_request`. Lifecycle: pending -> miniapp_opened
+// -> capturing -> analyzing -> (resolved | awaiting_retry -> capturing again) ->
+// expired/cancelled. `chatId`/`telegramUserId` etc. are plain indexed columns
+// (no Prisma relation), matching the CaptchaConfig/CaptchaSession convention
+// used elsewhere in this schema.
+model VerificationSession {
+  id             String @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramChatId BigInt
+  telegramUserId BigInt
+  // Private chat id with the user, when known (e.g. to DM a result). Distinct
+  // from telegramUserId because a user id is not always usable as a chat id
+  // for bots that never received a /start in DM.
+  userChatId     BigInt?
+
+  // AES-256-GCM ciphertext (iv+tag packed, base64) of the Bot API
+  // chat_join_request query_id. Only needed to answer the FIRST
+  // answerChatJoinRequestQuery call; nulled out once that call succeeds. Manual
+  // staff decisions after an initial `queue` answer use the already-implemented
+  // approveChatJoinRequest/declineChatJoinRequest (chat_id + user_id) instead —
+  // see docs/GUARDIAN_TELEGRAM_TEST.md for why.
+  joinRequestQueryIdEncrypted String?
+
+  username        String?
+  firstName       String?
+  lastName        String?
+  languageCode    String?
+  inviteLinkName  String?
+  // ISO 3166-1 alpha-2, resolved from the person's IP (Cloudflare's
+  // CF-IPCountry) on the Mini App's very first request and pinned here —
+  // never re-derived later, so enabling a VPN mid-flow can't change it.
+  countryCode     String?
+  // Client IP (Cloudflare cf-connecting-ip) captured on that same first
+  // request and pinned. Shown to STAFF for fraud/multi-account signals.
+  verifierIp      String?
+
+  status           GuardianSessionStatus @default(pending)
+  decision         GuardianDecision?
+  decisionReason   String?
+  // Structured explanation: decision codes, signals, thresholds, policy
+  // version — never just a free-text summary, so STAFF can audit the "why".
+  decisionPayload  Json?
+  // Snapshot of the chat's GuardianMode at session creation, so a later config
+  // change can't reinterpret an in-flight session under a different policy.
+  mode             GuardianMode
+
+  challengeDefinition Json
+  // Single-use nonce embedded in the challenge; a replayed/edited client
+  // submission that doesn't match is rejected.
+  challengeNonce      String @unique
+  // SHA-256 hash of the opaque bearer token handed to the Mini App URL. The
+  // raw token is never persisted.
+  sessionTokenHash    String @unique
+
+  expiresAt    DateTime
+  attemptCount Int      @default(0)
+  /// Furthest screen the person reached in the Mini App, as a rank:
+  /// 0 never opened it · 1 opened · 2 accepted consent · 3 declared age
+  /// 4 camera granted · 5 photo submitted.
+  ///
+  /// Telemetry, not state — it only ever moves FORWARD (see advanceProgress),
+  /// so a page reload cannot walk it back. Exists because "they abandoned" was
+  /// all we could see: over half of the people who opened the app never
+  /// reached the photo, and nothing recorded WHICH screen lost them.
+  progressStep Int      @default(0)
+  createdAt    DateTime @default(now())
+  completedAt  DateTime?
+  resolvedAt   DateTime?
+
+  staffChatId            BigInt?
+  staffMessageId         Int?
+  staffReportMessageId   Int?
+  // When the STAFF report message becomes eligible for retention deletion.
+  // Stamped at send time so the cleanup worker is driven by the session (photo
+  // and no-media text reports alike), never by the mutable media delete cursor.
+  staffReportDeleteAfter DateTime?
+
+  // Optimistic lock: every state transition (session update, staff decision,
+  // Telegram answer) increments this and checks it in the WHERE clause so two
+  // concurrent resolutions (e.g. auto-decision race with a staff tap) can't
+  // both "win".
+  version Int @default(1)
+
+  // Deterministic hash of (chatId, telegramUserId) while a session is ACTIVE;
+  // set back to null on resolution/expiry so a later join request can start a
+  // fresh session. The @unique constraint is what actually prevents a second
+  // concurrent session for the same person in the same chat (Postgres allows
+  // unlimited NULLs in a unique column, so resolved sessions don't collide).
+  idempotencyKey String? @unique
+
+  /// Every room this session's STAFF report was delivered to.
+  staffReports VerificationStaffReport[]
+
+  @@index([tenantId, chatId, status])
+  @@index([tenantId, telegramUserId])
+  @@index([expiresAt])
+  @@index([staffReportDeleteAfter])
+  @@map("verification_sessions")
+}
+
+/// One delivered copy of a STAFF report.
+///
+/// Exists because a report can now land in several rooms, and every copy has to
+/// be findable again: retention must delete each one, and a verdict has to be
+/// stamped on all of them, not just the message whose button was pressed.
+/// Before this the session carried a single (staffChatId, staffReportMessageId)
+/// pair, which cannot describe more than one destination.
+model VerificationStaffReport {
+  id             String   @id @default(cuid())
+  sessionId      String
+  telegramChatId BigInt
+  messageId      Int
+  threadId       Int?
+  /// The copy that owns the canonical route. Not about permissions — every copy
+  /// carries the decision buttons and the session's optimistic lock decides who
+  /// wins — but the primary is the one worth naming in logs and errors.
+  isPrimary      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  session VerificationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, telegramChatId, messageId])
+  @@index([sessionId])
+  @@map("verification_staff_reports")
+}
+
+model VerificationAttempt {
+  id            String   @id @default(cuid())
+  sessionId     String
+  attemptNumber Int
+  captureType   String
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  // On-device (client) analysis summary — guidance only, never authoritative.
+  clientEvidence Json?
+  analysisStatus GuardianProviderStatus @default(not_evaluated)
+  failureReason  String?
+  createdAt      DateTime @default(now())
+
+  @@index([sessionId])
+  @@unique([sessionId, attemptNumber])
+  @@map("verification_attempts")
+}
+
+model VerificationMedia {
+  id                  String    @id @default(cuid())
+  sessionId           String
+  attemptId           String?
+  objectStorageKey    String
+  thumbnailStorageKey String?
+  mimeDetected        String?
+  mimeDeclared        String?
+  sizeBytes           Int?
+  width               Int?
+  height              Int?
+  durationMs          Int?
+  fps                 Float?
+  codec               String?
+  sha256              String
+  perceptualHash      String?
+  createdAt           DateTime  @default(now())
+  deleteAfter         DateTime
+  deletedAt           DateTime?
+
+  @@index([sessionId])
+  @@index([sha256])
+  @@index([deleteAfter])
+  @@map("verification_media")
+}
+
+model VerificationAnalysis {
+  id        String @id @default(cuid())
+  attemptId String @unique
+
+  faceCount      Int?
+  faceConfidence Float?
+
+  gestureRequested String?
+  gestureDetected  String?
+  gestureScore     Float?
+
+  headMovementRequested String?
+  headMovementDetected  String?
+  headMovementScore     Float?
+
+  blinkRequested Boolean?
+  blinkDetected  Boolean?
+
+  livenessScore  Float?
+  livenessStatus GuardianProviderStatus?
+
+  replayRisk         Float?
+  screenReplayRisk   Float?
+  syntheticMediaRisk Float?
+  syntheticStatus    GuardianProviderStatus?
+
+  provenanceStatus GuardianProvenanceStatus?
+
+  estimatedAgeMin Int?
+  estimatedAgeMax Int?
+  ageConfidence   Float?
+  ageStatus       GuardianProviderStatus?
+
+  qualityScore  Float?
+  lightingScore Float?
+
+  hardFailures Json?
+  warnings     Json?
+  modelVersions Json?
+
+  analysisDurationMs Int?
+  // Full technical report handed to STAFF as a downloadable JSON — every field
+  // above is derived from this, kept in sync at write time.
+  rawTechnicalReport Json?
+  createdAt          DateTime @default(now())
+
+  @@map("verification_analyses")
+}
+
+model StaffDecision {
+  id                  String              @id @default(cuid())
+  sessionId           String
+  moderatorTelegramId BigInt
+  action              GuardianStaffAction
+  reason              String?
+  createdAt           DateTime            @default(now())
+
+  @@index([sessionId])
+  @@map("staff_decisions")
+}
+
+// --- Casino chip economy (virtual, non-cashable) ---
+
+model ChipWallet {
+  id             String   @id @default(cuid())
+  tenantId       String
+  telegramUserId BigInt
+  balance        Int      @default(0)
+  // Provably-fair commit-reveal seed pair. serverSeed is SECRET until rotation;
+  // serverSeedHash is the public commit shown before any bet. nonce increments
+  // per bet so every outcome is reproducible from (serverSeed, clientSeed, nonce).
+  serverSeed     String
+  serverSeedHash String
+  clientSeed     String
+  nonce          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tenantId, telegramUserId])
+  @@index([tenantId])
+  @@map("chip_wallets")
+}
+
+model ChipLedger {
+  id             String   @id @default(cuid())
+  tenantId       String
+  telegramUserId BigInt
+  delta          Int
+  reason         String
+  // refId links a row to its origin (betId, or a UTC day for the daily bonus).
+  // The composite unique makes idempotent grants (daily/bonus) safe.
+  refId          String?
+  // chargeId is the Telegram Stars idempotency key (one credit per purchase).
+  chargeId       String?  @unique
+  createdAt      DateTime @default(now())
+
+  @@unique([tenantId, telegramUserId, reason, refId])
+  @@index([tenantId, telegramUserId])
+  @@map("chip_ledger")
+}
+
+model CasinoDuel {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  challengerId   BigInt
+  challengerName String?
+  stake          Int
+  status         String   @default("open") // open | rolling | settled | cancelled
+  opponentId     BigInt?
+  winnerId       BigInt?
+  createdAt      DateTime @default(now())
+
+  @@index([tenantId, status])
+  @@map("casino_duels")
+}
+
+/// A live match between two real people (tres en raya, and whatever turn-based
+/// game comes next). The SERVER owns the position: `state` is the board, and a
+/// client only ever asks to move.
+model GameMatch {
+  id         String   @id @default(cuid())
+  tenantId   String
+  /// Where the invite was posted, so the lobby message can be edited when the
+  /// seat is taken and when the match ends.
+  chatId     BigInt
+  /// Set once the invite message exists; null if posting it failed, which must
+  /// not stop the match itself from being playable via its link.
+  messageId  Int?
+  game       String
+  hostId     BigInt
+  hostName   String?
+  /// Null until somebody takes the seat — which is exactly what "open" means.
+  guestId    BigInt?
+  guestName  String?
+  status     String   @default("open") // open | playing | finished | cancelled
+  /// Board position, owned by the server. JSON so a second game can store its
+  /// own shape without a migration.
+  state      Json
+  /// host | guest | draw, only once status is finished.
+  result     String?
+  /// Optimistic lock, same idiom as VerificationSession. Two taps that both
+  /// pass the turn check would otherwise each write a board, and the loser
+  /// would vanish with no sign that a move was dropped.
+  version    Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  /// Empty for the two-seat games, which keep using hostId/guestId above. Only
+  /// the group games (impostor, colour cards, group wordle) fill this in.
+  players GameMatchPlayer[]
+
+  /// The lobby lists open matches per chat; the sweeper scans by status+age.
+  @@index([tenantId, chatId, status])
+  @@index([status, updatedAt])
+  @@map("game_matches")
+}
+
+/// A seat at a group match, for the games that seat more than two people.
+///
+/// A row per player instead of a list inside `GameMatch.state` for two reasons,
+/// and both are the kind that only show up in production:
+///
+/// 1. Joining is a race. Six people tapping "me apunto" at the same moment all
+///    read the same roster and all write their own version of it back; five of
+///    them vanish with nothing to show it happened. A unique index on
+///    (matchId, userId) makes the database settle it instead.
+/// 2. `secret` must be hard to leak. Anything that lives inside the match state
+///    rides along in every response that returns the match, so one careless
+///    endpoint shows the whole table the impostor's word or somebody's hand.
+///    Kept here, leaking it takes an explicit join that somebody has to write.
+model GameMatchPlayer {
+  id       String  @id @default(cuid())
+  matchId  String
+  tenantId String
+  userId   BigInt
+  name     String?
+
+  /// Order of arrival; 0 is whoever opened the match. Turn order is derived
+  /// from this, so there is no separate "whose turn" field that could end up
+  /// pointing at somebody who already left.
+  seatIndex Int
+
+  /// alive | out | left. Nobody is deleted: a match has to be able to say who
+  /// was eliminated and when, and a vote cast by someone since removed still
+  /// has to count for the round it belonged to.
+  status String @default("alive")
+
+  /// What only this person may see — the impostor's word, a hand of cards.
+  /// Null for games where nothing is private.
+  secret Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  match GameMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  /// One seat per person, and one person per seat.
+  @@unique([matchId, userId])
+  @@unique([matchId, seatIndex])
+  /// "What am I playing right now" across chats.
+  @@index([tenantId, userId])
+  @@map("game_match_players")
+}
+
+/// One day's pole competition for one scope.
+///
+/// Derived from (timezone, reset time, now) at claim time rather than opened by
+/// a job: a container that was down at midnight must still produce the right
+/// window. `startsAt` is therefore the identity of the window, not merely a
+/// timestamp — two processes computing it from the same inputs get the same
+/// instant, which is what makes the unique index below meaningful.
+model PoleWindow {
+  id           String   @id @default(cuid())
+  tenantId     String
+  chatId       BigInt
+  /// Null when the group runs one competition for the whole chat, which is the
+  /// default. Only set when the group asked to split by forum topic.
+  threadId     Int?
+  windowType   String   @default("daily")
+  startsAt     DateTime
+  endsAt       DateTime
+  /// Stored alongside so a later timezone change cannot retroactively rewrite
+  /// which day an old claim belonged to.
+  timezone     String
+  resetMinutes Int      @default(0)
+  /// Local calendar day the window opened, "YYYY-MM-DD". Denormalised so
+  /// monthly and yearly rankings are a prefix scan instead of a timezone
+  /// conversion per row.
+  dayKey       String
+  createdAt    DateTime @default(now())
+
+  claims PoleClaim[]
+
+  /// Postgres does not treat two NULLs as equal, so this constraint does NOT
+  /// cover the (majority) rows where threadId is null. The migration adds a
+  /// partial unique index for that case — see POLE_SPEC §4.
+  @@unique([tenantId, chatId, threadId, windowType, startsAt])
+  @@index([tenantId, chatId, dayKey])
+  @@map("pole_windows")
+}
+
+/// One awarded position inside a window.
+///
+/// The two unique indexes ARE the concurrency design. A claim is an INSERT, not
+/// a read-then-write: whoever the database accepts holds the place, and a
+/// rejection is information (that position is taken / you already have one)
+/// rather than an error.
+///
+/// Deliberately absent: the text of the winning message. The report is explicit
+/// that ids, a timestamp and the latency are enough (§5.9, §16.4).
+model PoleClaim {
+  id        String   @id @default(cuid())
+  windowId  String
+  /// 1 = pole, 2 = subpole, 3 = bronze, …
+  position  Int
+  userId    BigInt
+  userName  String?
+  messageId Int?
+  /// Milliseconds from the window opening. Measures the ritual, not the person.
+  latencyMs Int
+  claimedAt DateTime @default(now())
+
+  window PoleWindow @relation(fields: [windowId], references: [id], onDelete: Cascade)
+
+  /// Sin @@index([windowId]) a propósito: Postgres usa cualquier prefijo de un
+  /// índice compuesto, así que los dos únicos de arriba ya cubren "las
+  /// reclamaciones de esta ventana". Uno suelto costaba 14 MB por cada 654.000
+  /// filas y se mantenía en cada INSERT sin ganar nada — medido, no supuesto.
+  @@unique([windowId, position])
+  @@unique([windowId, userId])
+  @@map("pole_claims")
+}
+
+/// One spin of the virtual roulette.
+///
+/// Audit, cooldown source and idempotency key in one row. `messageId` rather
+/// than `updateId` on purpose: a redelivered update carries the same message,
+/// so the unique index below is what stops one command silencing somebody
+/// twice.
+///
+/// The draw itself is never stored — publishing it would let anyone work out
+/// when the next round is safe (report §6.8).
+model RouletteRound {
+  id          String   @id @default(cuid())
+  tenantId    String
+  chatId      BigInt
+  threadId    Int?
+  userId      BigInt
+  messageId   Int
+  numerator   Int
+  denominator Int
+  /// safe | adverse
+  outcome     String
+  /// fun | muted | degraded
+  consequence String
+  muteSeconds Int?
+  /// Why an adverse round did nothing: no-permission | protected. Null
+  /// otherwise. Kept so "the roulette is broken" reports can be answered.
+  degradedWhy String?
+  rngVersion  Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, chatId, messageId])
+  @@index([tenantId, chatId, createdAt])
+  @@index([tenantId, userId, createdAt])
+  @@map("roulette_rounds")
+}
+
+/// A curated cat or dog.
+///
+/// `source` and `licence` are NOT NULL because an asset without recorded
+/// provenance must be impossible to store, not merely discouraged (report
+/// §8.2). Nothing in the codebase writes this table from a user-supplied URL.
+model FunMediaAsset {
+  id           String   @id @default(cuid())
+  /// Null = available to every tenant; set = private to one bot's library.
+  tenantId     String?
+  /// cat | dog
+  kind         String
+  source       String
+  licence      String
+  attribution  String?
+  /// Bytes, when the library holds the file itself. Null when the asset only
+  /// ever existed as a Telegram file_id.
+  storageKey   String?
+  /// sha256 of the bytes, so the same picture cannot be added twice.
+  contentHash  String?
+  /// approved | pending | rejected. Only `approved` is ever served.
+  safetyStatus String   @default("pending")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  telegramFiles TelegramMediaFile[]
+
+  @@unique([kind, contentHash])
+  @@index([kind, safetyStatus, active])
+  @@map("fun_media_assets")
+}
+
+/// A Telegram file_id for one asset, for ONE bot.
+///
+/// Separate from the asset because a file_id is bound to the bot identity that
+/// uploaded it: a child bot cannot send the parent's file_id. Re-uploading per
+/// bot once and caching the result is the whole point (report §7.6, §12.7).
+model TelegramMediaFile {
+  id                  String   @id @default(cuid())
+  assetId             String
+  /// The bot this file_id belongs to. Same identity as everywhere else.
+  tenantId            String
+  /// Null mientras la subida no ha salido bien: la fila existe desde que se
+  /// planifica el trabajo, no desde que termina.
+  telegramFileId      String?
+  telegramFileUniqueId String?
+  /// pending | ready | failed | disabled. Solo `ready` se sirve.
+  state               String   @default("pending")
+  /// Intentos consumidos. Un 429 no da el recurso por perdido a la primera.
+  attempts            Int      @default(0)
+  /// Último error de Telegram, para que `failed` sea diagnosticable. Nunca
+  /// lleva el token: el gateway construye el mensaje con método y estado.
+  lastError           String?
+  createdAt           DateTime @default(now())
+  lastVerifiedAt      DateTime?
+
+  asset FunMediaAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, tenantId])
+  /// El job de preparación busca "lo que le falta a este bot".
+  @@index([tenantId, state])
+  @@map("telegram_media_files")
+}
+
+model CasinoBet {
+  id             String   @id @default(cuid())
+  tenantId       String
+  telegramUserId BigInt
+  game           String // crash | mines | blackjack
+  stake          Int
+  status         String   @default("open") // open | settled
+  serverSeed     String
+  serverSeedHash String
+  clientSeed     String
+  nonce          Int
+  state          Json
+  payout         Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([tenantId, telegramUserId, status])
+  @@map("casino_bets")
+}
+
+// Progressive jackpot: one growing pot per tenant. Each bet skims a small rake
+// into it (see ChipRepository.placeBet); a rare provably-fair roll awards it.
+model Jackpot {
+  id        String   @id @default(cuid())
+  tenantId  String   @unique
+  amount    Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@map("jackpots")
+}
+
+// Weekly casino tournament. Score = net chips during the ISO-week window
+// (derived from ChipLedger, not stored). Lazily settled on first read after the
+// window ends: top players are paid from prizePool (funded by the bet rake).
+model Tournament {
+  id        String    @id @default(cuid())
+  tenantId  String
+  period    String // ISO week, e.g. "2026-W27"
+  startsAt  DateTime
+  endsAt    DateTime
+  status    String    @default("open") // open | settled
+  prizePool Int       @default(0)
+  winners   Json? // [{ telegramUserId, prize, net }] set at settlement
+  createdAt DateTime  @default(now())
+  settledAt DateTime?
+  // Set only after every winner's credit() succeeded — separates "claimed for
+  // settlement" (status) from "actually paid", so a crash mid-payout can be
+  // resumed instead of stranding the remaining winners' prizes forever.
+  payoutsCompletedAt DateTime?
+
+  @@unique([tenantId, period])
+  @@map("tournaments")
+}
+
+// --- D1 control center MVP ---
+
+model D1LogConfig {
+  id                String   @id @default(cuid())
+  tenantId          String
+  chatId            String
+  logTelegramChatId BigInt
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([tenantId, chatId])
+  @@index([tenantId])
+  @@map("d1_log_configs")
+}
+
+model D1Event {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String?
+  kind      String
+  title     String
+  body      String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, chatId, createdAt])
+  @@index([tenantId, kind])
+  @@map("d1_events")
+}
+
+model QuarantineConfig {
+  id         String   @id @default(cuid())
+  tenantId   String
+  chatId     String   @unique
+  enabled    Boolean  @default(false)
+  strictness String   @default("balanced")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("quarantine_configs")
+}
+
+model QuarantineItem {
+  id              String    @id @default(cuid())
+  tenantId        String
+  chatId          String
+  telegramChatId  BigInt
+  messageId       Int?
+  actorTelegramId BigInt
+  username        String?
+  text            String?
+  reason          String
+  status          String    @default("pending")
+  reviewedBy      BigInt?
+  reviewNote      String?
+  createdAt       DateTime  @default(now())
+  reviewedAt      DateTime?
+
+  @@index([tenantId, chatId, status])
+  @@index([tenantId, actorTelegramId])
+  @@map("quarantine_items")
+}
+
+model D1Appeal {
+  id                  String    @id @default(cuid())
+  tenantId            String
+  chatId              String?
+  caseRef             String
+  appellantTelegramId BigInt
+  username            String?
+  message             String
+  status              String    @default("open")
+  resolvedBy          BigInt?
+  resolution          String?
+  createdAt           DateTime  @default(now())
+  resolvedAt          DateTime?
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, appellantTelegramId])
+  @@map("d1_appeals")
+}
+
+model AutomationRule {
+  id           String   @id @default(cuid())
+  tenantId     String
+  chatId       String
+  name         String
+  triggerKind  String
+  triggerValue String
+  actionKind   String
+  actionValue  String?
+  active       Boolean  @default(true)
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId, chatId, active])
+  @@map("automation_rules")
+}
+
+model Mission {
+  id          String   @id @default(cuid())
+  tenantId    String
+  chatId      String
+  title       String
+  goalKind    String
+  goalTarget  Int
+  rewardBadge String
+  active      Boolean  @default(true)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  progress MissionProgress[]
+
+  @@index([tenantId, chatId, active])
+  @@map("missions")
+}
+
+model MissionProgress {
+  id             String    @id @default(cuid())
+  missionId      String
+  telegramUserId BigInt
+  progress       Int       @default(0)
+  completedAt    DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@unique([missionId, telegramUserId])
+  @@index([telegramUserId])
+  @@map("mission_progress")
+}
+
+model UserBadge {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  badgeKey       String
+  title          String
+  awardedAt      DateTime @default(now())
+
+  @@unique([tenantId, chatId, telegramUserId, badgeKey])
+  @@index([tenantId, chatId, telegramUserId])
+  @@map("user_badges")
+}
+
+/// Generic rolling log of chat activity, used to power ambient security and
+/// community detectors that need a recent-history window (tone shift, hot
+/// users, cursed topics, copy-paste spam, etc.) without a bespoke table per
+/// detector. `kind` discriminates the event shape; unused fields stay null.
+model ChatActivityEvent {
+  id              String   @id @default(cuid())
+  tenantId        String
+  chatId          String
+  kind            String
+  telegramUserId  BigInt?
+  username        String?
+  text            String?
+  topic           String?
+  messageId       BigInt?
+  hasLink         Boolean  @default(false)
+  hasMention      Boolean  @default(false)
+  isReply         Boolean  @default(false)
+  repliedToUserId BigInt?
+  tensionScore    Float?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, chatId, createdAt])
+  @@index([tenantId, chatId, kind, createdAt])
+  @@index([tenantId, chatId, messageId])
+  // Los tres de arriba empiezan por tenantId: ninguno sirve para la barrida
+  // por fecha del job de retencion.
+  @@index([createdAt])
+  @@map("chat_activity_events")
+}
+
+// ─── Wave 2 wiring (guardian-verification branch): security detectors, ECA
+// engine, and hidden games. Each model backs one repository under
+// packages/data/src/; see that file's docstring for what it's for. No
+// relation fields to Tenant/Chat are declared (matching ChatActivityEvent
+// above) so these can be appended without touching either model's
+// back-relation arrays.
+
+model AdminDecision {
+  id         String   @id @default(cuid())
+  tenantId   String
+  chatId     String
+  adminId    BigInt
+  action     String
+  ruleId     String?
+  occurredAt DateTime @default(now())
+
+  @@index([tenantId, chatId, occurredAt])
+  @@index([tenantId, adminId])
+  @@map("admin_decisions")
+}
+
+model KnownAdmin {
+  id        String   @id @default(cuid())
+  tenantId  String
+  chatId    String
+  adminId   BigInt
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, chatId, adminId])
+  @@index([tenantId, chatId])
+  @@map("known_admins")
+}
+
+/// An administrator THIS BOT appointed, via /admin.
+///
+/// The linchpin of the whole appointed-admin guard, because of a hard Telegram
+/// rule: a bot may only demote administrators it promoted itself. Without this
+/// row the bot cannot tell "someone I can revoke" from "someone I can only
+/// watch", and the guard would trip with no way to act. Anyone promoted by hand
+/// in Telegram is therefore permanently out of reach — /admin is not a
+/// convenience, it is the only door that leaves the trapdoor open.
+model BotGrantedAdmin {
+  id             String @id @default(cuid())
+  tenantId       String
+  /// Internal chat id, like every other per-chat table here.
+  chatId         String
+  /// Raw Telegram ids too: enforcement talks to the Bot API, which knows
+  /// nothing about internal cuids, and must work without a second lookup.
+  telegramChatId BigInt
+  telegramUserId BigInt
+  username       String?
+  displayName    String?
+  customTitle    String?
+
+  /// Who ran /admin. An appointment is an act by a person, and when the guard
+  /// later revokes someone, the first question is always who vouched for them.
+  grantedByTelegramId BigInt
+  grantedAt           DateTime @default(now())
+
+  /// active | revoked. Revoked rows are KEPT: the history of who was trusted
+  /// and why it ended is the point, and a re-appointment must be visible as a
+  /// second event rather than silently overwriting the first.
+  status        String    @default("active")
+  revokedAt     DateTime?
+  /// Machine-readable cause, e.g. "guard:ban_burst" or "manual".
+  revokedReason String?
+
+  /// Set when this person was already an admin before the bot got involved and
+  /// was re-appointed through it to bring them under the guard. Distinguishes
+  /// "the bot trusted them" from "the bot merely took over an existing badge".
+  adoptedExisting Boolean @default(false)
+
+  @@unique([tenantId, chatId, telegramUserId])
+  @@index([tenantId, chatId, status])
+  @@index([telegramChatId, status])
+  @@map("bot_granted_admins")
+}
+
+/// A newcomer who owes the group an introduction.
+///
+/// A row exists only while the clock is running. It is deleted the moment they
+/// introduce themselves or are removed, so the table stays the size of "people
+/// currently on the clock" rather than growing with every join the group has
+/// ever had.
+model IntroductionPending {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramChatId BigInt
+  telegramUserId BigInt
+  username       String?
+  joinedAt       DateTime @default(now())
+  /// When they stop being welcome. Stored rather than computed from joinedAt so
+  /// changing the group's deadline later cannot retroactively expel someone who
+  /// was already inside the old window.
+  dueAt          DateTime
+  /// Avisos de la escalada ya puestos DESPUÉS de la ficha (el 1.º va con la
+  /// ficha misma y no cuenta aquí). Con `reportedAt` da el momento del
+  /// siguiente: reportedAt + (reminders+1) × cadencia.
+  reminders      Int      @default(0)
+  /// When the STAFF card for this person was posted. Null means the deadline is
+  /// still running or has just passed; set means a human has the case — and,
+  /// desde la escalada, tambien el reloj desde el que se cuentan los avisos
+  /// periodicos. Without this the sweep re-posts the same card every minute —
+  /// the row cannot simply be deleted at report time, or the buttons would
+  /// have nothing left to act on.
+  reportedAt     DateTime?
+  /// Dónde quedó publicada la ficha de STAFF, para que la escalada pueda
+  /// editarla al expulsar. Null en filas de antes de la migración o si el
+  /// envío no devolvió message_id: la expulsión entonces no edita nada — la
+  /// ficha se queda como estaba y sus botones responden "ya no está abierto".
+  staffChatId    BigInt?
+  staffThreadId  Int?
+  staffMessageId Int?
+
+  @@unique([tenantId, chatId, telegramUserId])
+  @@index([dueAt])
+  @@map("introduction_pending")
+}
+
+model DomainReputation {
+  id          String   @id @default(cuid())
+  tenantId    String
+  domain      String
+  firstSeenAt DateTime @default(now())
+
+  @@unique([tenantId, domain])
+  @@map("domain_reputation")
+}
+
+model EcaRule {
+  id          String   @id @default(cuid())
+  tenantId    String
+  chatId      String?
+  event       String
+  conditions  Json
+  action      Json
+  enabled     Boolean  @default(true)
+  cooldownMs  Int?
+  expiresAtMs BigInt?
+  lastFiredMs BigInt?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([chatId])
+  @@index([tenantId, event, enabled])
+  @@map("eca_rules")
+}
+
+model SpeedRound {
+  id           String   @id @default(cuid())
+  tenantId     String
+  chatId       String
+  question     String
+  answer       String
+  status       String   @default("open") // "open" | "closed"
+  startedAt    DateTime @default(now())
+  closesAt     DateTime
+  winnerUserId BigInt?
+  createdBy    BigInt?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  submissions SpeedRoundAnswer[]
+
+  @@index([tenantId, chatId, status])
+  @@map("speed_rounds")
+}
+
+model SpeedRoundAnswer {
+  id         String   @id @default(cuid())
+  roundId    String
+  userId     BigInt
+  correct    Boolean
+  answeredAt DateTime @default(now())
+
+  round SpeedRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, userId])
+  @@index([roundId])
+  @@map("speed_round_answers")
+}
+
+model MemorySequenceSession {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  seed           Int
+  length         Int
+  startedAt      DateTime @default(now())
+
+  @@unique([chatId, telegramUserId])
+  @@index([tenantId])
+  @@map("memory_sequence_sessions")
+}
+
+model QuizDifficultyState {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  level          Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([chatId, telegramUserId])
+  @@index([tenantId, chatId])
+  @@map("quiz_difficulty_states")
+}
+
+model BracketTournament {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  status         String   @default("open") // open | done
+  entrants       Json
+  currentRound   Int      @default(1)
+  pendingMatches Json
+  roundWinners   Json
+  champion       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([tenantId, chatId, status])
+  @@map("bracket_tournaments")
+}
+
+/// Shared "submit an entry, then vote" table for the two structurally
+/// identical community battle games (playlist-battle, creativity-challenge).
+model BattleEntry {
+  id          String   @id @default(cuid())
+  tenantId    String
+  chatId      String
+  kind        String // "playlist" | "creativity"
+  roundId     String
+  submittedBy BigInt
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  votes BattleEntryVote[]
+
+  @@unique([roundId, kind, submittedBy])
+  @@index([tenantId, chatId, kind, roundId])
+  @@map("battle_entries")
+}
+
+model BattleEntryVote {
+  id        String   @id @default(cuid())
+  entryId   String
+  roundId   String
+  voterId   BigInt
+  createdAt DateTime @default(now())
+
+  entry BattleEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, voterId])
+  @@index([entryId])
+  @@map("battle_entry_votes")
+}
+
+model CoopCityContribution {
+  id             String @id @default(cuid())
+  tenantId       String
+  chatId         String
+  telegramUserId BigInt
+  resources      Int    @default(0)
+
+  @@unique([tenantId, chatId, telegramUserId])
+  @@index([tenantId, chatId])
+  @@map("coop_city_contributions")
+}
+
+/// Fotos rescatadas de los canales de STAFF y guardadas aparte, para que el bot
+/// consultor pueda volver a enseñarlas.
+///
+/// Existe porque `verification_media` no sirve para esto: su retención (72 h por
+/// defecto) es una promesa de privacidad que se le hace a cada persona en la
+/// pantalla de consentimiento, y el barrido la cumple borrando el fichero. Sacar
+/// una copia a otra tabla NO es un detalle de implementación — es una decisión
+/// deliberada de conservar lo que allí se borra, y por eso vive en su propio
+/// sitio, con su propia fecha y su propio origen, en vez de mezclarse con las
+/// filas que la retención gobierna.
+///
+/// `capturedAt` es la fecha del mensaje original, no la del archivado: el
+/// archivador puede pasar meses después y una ficha fechada el día del rescate
+/// no dice nada de cuándo entró esa persona.
+model ArchivedMedia {
+  id       String @id @default(cuid())
+  tenantId String
+  /// A quién pertenece, leído del ID que la ficha de STAFF lleva en el texto.
+  telegramUserId BigInt
+  /// `verification` (la foto que pidió Guardian) o `introduction` (la que la
+  /// persona publicó en el grupo al presentarse). Se guardan juntas porque la
+  /// pregunta que se hace desde el grupo es "enséñame sus fotos", no
+  /// "enséñame sus fotos de tal flujo".
+  kind String
+  /// Clave en el mismo object storage que usa Guardian, bajo otro prefijo.
+  objectStorageKey String
+  /// Deduplica: la misma foto reenviada a dos canales se archiva una vez.
+  sha256    String
+  mimeType  String?
+  sizeBytes Int?
+  /// De qué mensaje salió. Es lo que hace que el archivador se pueda repetir
+  /// sin duplicar nada, y lo que permite volver al original.
+  sourceChatId    BigInt?
+  sourceMessageId Int?
+  /// La sesión de Guardian, cuando se pudo atar a una.
+  sessionId String?
+  /// Fecha del mensaje original.
+  capturedAt DateTime
+  archivedAt DateTime @default(now())
+
+  @@unique([sourceChatId, sourceMessageId])
+  @@index([telegramUserId, capturedAt])
+  @@index([sha256])
+  @@index([sessionId])
+  @@map("archived_media")
+}
+
+/// Registro completo de mensajes.
+///
+/// Decision explicita del propietario (2026-08-09): Modryva guarda TODO lo que
+/// ve —texto, fotos, videos y audios, en todos los grupos— y sin caducidad.
+/// Va en su propia tabla y NO dentro de `chat_activity_events` por dos motivos
+/// que no son de estilo: aquella caduca a los 90 dias (`data.retention_cleanup`)
+/// y alimenta heuristicas de moderacion que cuentan filas. Meter aqui el
+/// historico entero habria roto lo primero y falseado lo segundo.
+///
+/// A diferencia del resto del esquema, aqui NO hay job de retencion. Si algun
+/// dia lo hay, este es el sitio donde mirarlo primero.
+///
+/// El contenido de los mensajes es dato personal de terceros: quien lo
+/// consulta lo hace desde el bot consultor, que vive en un solo grupo privado.
+model MessageLog {
+  id             String @id @default(cuid())
+  tenantId       String
+  /// Cuid del chat. Nulo cuando el mensaje llego de un chat que aun no estaba
+  /// dado de alta: se prefiere guardar el mensaje sin ese enlace a perderlo.
+  chatId         String?
+  telegramChatId BigInt
+  telegramUserId BigInt
+  messageId      Int
+  /// Tema del foro, cuando el grupo los usa.
+  threadId       Int?
+  username    String?
+  displayName String?
+  /// `text` o el tipo de adjunto (photo, video, voice, audio, document...).
+  kind String
+  /// Lo que escribio la persona: el texto, o el pie si venia con adjunto.
+  text String?
+  /// Que respondia, para poder reconstruir una conversacion.
+  replyToMessageId Int?
+  replyToUserId    BigInt?
+  /// El file_id de Telegram. Sirve para volver a pedir el fichero, pero SOLO
+  /// con el token que lo genero: un file_id no vale entre bots distintos.
+  mediaFileId    String?
+  mediaUniqueId  String?
+  mediaMimeType  String?
+  mediaSizeBytes Int?
+  /// Clave en el object storage una vez bajados los bytes. Nulo mientras esta
+  /// pendiente: la pareja (mediaFileId no nulo, objectStorageKey nulo) ES la
+  /// cola de trabajo del job que los descarga. Se hizo asi en vez de encolar en
+  /// `job_outbox` porque esa tabla no la drena nadie hoy.
+  objectStorageKey String?
+  /// Intentos de descarga gastados. Un 429 no da el fichero por perdido a la
+  /// primera; pasado el tope, la fila se queda con el file_id y sin bytes.
+  mediaAttempts Int     @default(0)
+  mediaError    String?
+  /// Cuando se edito, si se edito. El texto guardado es el ultimo visto.
+  editedAt DateTime?
+  sentAt   DateTime
+  createdAt DateTime @default(now())
+
+  /// Un mensaje es unico por chat. Reprocesar un update repetido no duplica.
+  @@unique([telegramChatId, messageId])
+  /// La consulta de `/mensajes` en el consultor.
+  @@index([telegramUserId, sentAt])
+  @@index([telegramChatId, sentAt])
+  /// La cola del job de descarga.
+  @@index([objectStorageKey, mediaFileId])
+  @@map("message_log")
+}
+
+/// La mascota de una persona en un grupo.
+///
+/// Misma clave que la cartera —`(tenant, chat, persona)`— y por el mismo
+/// motivo: la economia de cada grupo es la suya, asi que un bicho que comiera
+/// de dos carteras obligaria a decidir de cual, y esa pregunta no tiene
+/// respuesta buena.
+///
+/// **Una por persona y grupo, de momento.** El plan contempla un corral con
+/// varias en reposo, pero eso llega con el mercado y la cria: hasta entonces no
+/// hay forma de tener una segunda, y un unique es mas barato de garantizar que
+/// un indice parcial "solo una activa" que el drift-check no sabria leer.
+///
+/// **No hay tabla de eventos de mascota, y es deliberado.** Cuatro raciones al
+/// dia por bicho serian 1,4 millones de filas al año con mil mascotas. Lo que
+/// hay que auditar —cada moneda que entra y sale— ya lo anota `economy_ledger`,
+/// que tiene su propia politica. Esta fila se actualiza; no se acumula. Con eso
+/// mil mascotas ocupan unos 200 KB y no crecen con el tiempo.
+model Pet {
+  id             String   @id @default(cuid())
+  tenantId       String
+  chatId         String
+  userTelegramId BigInt
+
+  /// Id del catalogo de @superbot/module-games. Texto y no enum: el catalogo
+  /// crece por tandas y una migracion por cada especie nueva convertiria "una
+  /// entrada de constantes" en "una entrada y un despliegue de base de datos".
+  especie String
+  /// Los rasgos con los que nacio. No cambian nunca: son su caracter.
+  rasgos  String[]
+  /// El nombre que le puso su dueño, si le puso alguno.
+  nombre  String?
+
+  hambre Int @default(100)
+  animo  Int @default(100)
+  nivel  Int @default(1)
+  xp     Int @default(0)
+
+  /// Cuando se le aplico por ultima vez el paso del tiempo. El decay no se
+  /// guarda tick a tick: se calcula al mirarla, restando desde aqui. Asi un
+  /// worker parado media hora no deja a nadie con el bicho congelado.
+  vistaEn DateTime
+
+  /// Raciones servidas dentro del dia que dice `racionesDia` (fecha UTC en
+  /// texto). Dos campos y no uno porque el contador sin su dia no se puede
+  /// distinguir de uno viejo: al cambiar el dia se reinicia solo.
+  racionesHoy Int     @default(0)
+  racionesDia String?
+
+  /// El ultimo dia UTC (en texto) cuya XP ya se cobro.
+  ///
+  /// Sin esto la XP se repartia en CADA revision del tick —una cada quince
+  /// minutos— en vez de una vez al dia: 96 veces mas rapido de lo diseñado. El
+  /// 2026-08-28 hubo mascotas con 110 XP y nivel 3 a las tres horas de nacer,
+  /// cuando les tocaba 0. El pago del rendimiento nunca lo sufrio porque a el
+  /// ya lo guardaba el `refId` del libro mayor; la XP se quedo fuera de esa
+  /// guarda, y esta columna es su equivalente.
+  ///
+  /// `null` significa "aun no se le ha cerrado ningun dia", que es lo correcto
+  /// para una mascota recien nacida: el primer cierre le toca.
+  xpDia String?
+
+  /// Lo mejor que estuvo la barra de hambre dentro del dia que dice
+  /// `hambreMaxDia`, y es lo que mira el cierre para decidir si el dia conto.
+  ///
+  /// El cierre corre en el primer barrido pasada la medianoche UTC —las dos de
+  /// la madrugada en España—, asi que preguntar por el hambre de ESE instante
+  /// no premiaba haber cuidado a la mascota: premiaba el horario. Quien le
+  /// daba de comer toda la tarde llegaba a las dos con la barra ya baja y se
+  /// quedaba sin XP. Con el maximo del dia, cuidar suma cuando se cuida.
+  ///
+  /// Dos campos y no uno, igual que `racionesHoy`: un maximo sin su dia no se
+  /// distingue de uno viejo, y con el dia al lado se reinicia solo.
+  hambreMax    Int     @default(0)
+  hambreMaxDia String?
+
+  /// El ultimo dia UTC en que se jugo con ella.
+  ///
+  /// Jugar es GRATIS y sube el animo, asi que el limite no puede ser el dinero:
+  /// tiene que ser el reloj, o subirlo seria pulsar un boton en bucle. Va en su
+  /// propia columna y no reutiliza `xpDia` porque son dos cosas distintas —una
+  /// la decide el worker y otra la persona— y compartir la marca haria que
+  /// cerrar el dia impidiera jugar.
+  ///
+  /// Antes de que esto existiera el animo SOLO bajaba: 1 punto por hora, sin
+  /// una sola forma de subirlo. A los cuatro dias toda mascota quedaba triste
+  /// para siempre y rindiendo el minimo, sin nada que su dueño pudiera hacer.
+  animoDia String?
+
+  /// Juguetes usados dentro del dia que dice `juguetesDia`.
+  ///
+  /// Dos campos y no uno, por lo mismo que `racionesHoy`: un contador sin su
+  /// dia no se distingue de uno viejo, y con el dia al lado se reinicia solo.
+  ///
+  /// Separado de `animoDia` porque son dos limites distintos — uno es "jugar
+  /// gratis, una vez" y otro "comprar juguetes, tres veces"— y compartir la
+  /// marca haria que jugar gratis gastara una compra.
+  juguetesHoy Int     @default(0)
+  juguetesDia String?
+
+  /// Dias seguidos cerrando el dia con el bicho bien cuidado.
+  ///
+  /// Se decide comparando el dia que se cierra con `xpDia`, no sumando uno a
+  /// ciegas: si el worker se cae un dia entero, un contador a secas daria por
+  /// seguidos dos dias que no lo son. Un hueco se ve y corta la racha, que es
+  /// justo lo que tiene que hacer para significar algo.
+  ///
+  /// Ademas es lo que enciende `rentaAcumulada`, que llevaba escrita en el
+  /// motor desde el principio esperando un `diaDeLaRacha` que nadie le pasaba.
+  racha Int @default(0)
+
+  /// A quien protege ademas de a su dueño, si su especie sabe hacerlo.
+  ///
+  /// Lo pone `/proteger @alguien` y es del efecto `protegeAOtro`. Nulo por
+  /// defecto a proposito: elegir a dedo a quien cubre el bicho de otro seria
+  /// decidir por esa persona.
+  protegeA BigInt?
+
+  /// Lo que le robaron y todavia no ha vuelto.
+  ///
+  /// El efecto `recuperaRobado` promete que lo robado vuelve poco a poco, y
+  /// eso es imposible sin recordar cuanto. Sube al sufrir un robo y baja un
+  /// poco cada dia en el barrido del worker, hasta cero.
+  robadoPendiente Int @default(0)
+
+  /// Juego justo, igual que en `economy_wallets`: `serverSeed` es SECRETO hasta
+  /// que se revela al eclosionar, `serverSeedHash` es el compromiso publico que
+  /// se enseña al comprar el huevo, y `nonce` sube en cada huevo para que todo
+  /// resultado se pueda recomputar desde (serverSeed, clientSeed, nonce).
+  serverSeed     String?
+  serverSeedHash String?
+  clientSeed     String?
+  nonce          Int     @default(0)
+  /// Huevos de familia seguidos sin sacar una rara. Publico a proposito: es la
+  /// unica forma de contestar a "este bot me odia" con algo comprobable.
+  huevosSinRara  Int     @default(0)
+
+  /// Marca del bicho dado a mano por el creador. Se ve en el corral, y esa es
+  /// justo la razon de que exista: si el regalo fuera invisible, cualquier
+  /// legendaria del corral podria serlo y todas perderian su valor a la vez.
+  regalada Boolean @default(false)
+
+  /// Cuando se le declaro una enfermedad grave. `null` = sana.
+  ///
+  /// Un solo campo dice las dos cosas —si esta enferma y desde cuando— y asi no
+  /// pueden contradecirse, que es lo que pasaria con un booleano y una fecha
+  /// aparte.
+  ///
+  /// Esto **no lo decide el azar ni el hambre**: lo declara el propietario a
+  /// mano, con motivo. La propiedad de que a hambre cero se duerme y no se
+  /// muere sigue en pie: el abandono no mata, y este mecanismo no es abandono.
+  enfermaDesde  DateTime?
+  /// El motivo que escribio quien la declaro. Obligatorio, igual que en el
+  /// resto de mandos del creador: dentro de seis meses tu tampoco te acordaras.
+  enfermaMotivo String?
+  /// Lo que se anuncio que costaba la operacion, congelado al diagnosticar.
+  ///
+  /// Guardado y no recalculado al pagar: si el saldo se mueve a mitad de plazo,
+  /// la factura que se dijo en publico no puede moverse con el. Se pacto un
+  /// numero y ese es el numero.
+  curaCoste     Int?
+  /// Con cuanto se queda su dueño despues de pagar.
+  ///
+  /// La factura no es una cantidad suelta sino un **suelo**: la operacion deja
+  /// la cartera exactamente aqui. Guardarlo permite que el cobro sea exacto
+  /// aunque el saldo se haya movido, y que dos enfermedades distintas dejen
+  /// suelos distintos sin desplegar.
+  curaResto     Int?
+  /// Cuando se acaba el plazo. Guardado, por lo mismo que el coste.
+  curaVence     DateTime?
+  /// Cuantos recordatorios se han mandado ya.
+  ///
+  /// Es la marca que impide repetirlos, y va aqui por la misma razon que
+  /// `xpDia`: el barrido mira cada mascota **cada quince minutos**, asi que un
+  /// aviso sin marca propia saldria 96 veces al dia. Es exactamente el fallo
+  /// que tuvo la XP el 2026-08-28, evitado esta vez antes de verlo en
+  /// produccion.
+  curaAvisos    Int       @default(0)
+  /// Cuando fallecio. `null` = viva.
+  ///
+  /// Se **marca**, no se borra la fila. Cuatro motivos: un `DELETE` no se
+  /// revierte y esto si; la muerte tiene que verse en la ficha, porque una fila
+  /// que desaparece deja un "no tienes bicho" y un huevo nuevo en diez
+  /// segundos; el corral puede enseñar la lapida; y la fila ocupa el unique de
+  /// (grupo, persona), que es lo que sostiene el duelo.
+  fallecidaEn   DateTime?
+
+  nacidaEn  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, chatId, userTelegramId])
+  /// El corral: todas las del grupo, ordenadas por nivel.
+  @@index([tenantId, chatId, nivel])
+  /// La cola del tick: a quien le toca que le pase el tiempo.
+  @@index([vistaEn])
+  /// Quien protege a una persona. Se pregunta en CADA robo, asi que sin indice
+  /// seria un escaneo de la tabla entera por golpe.
+  @@index([tenantId, chatId, protegeA])
+  @@map("pets")
+}
+
+/// Estado de una solicitud en la cola bot -> ayudante.
+///
+/// `en_proceso` existe para que el reclamo sea atomico: el poller del ayudante
+/// hace un `updateMany` que solo mueve filas en `pendiente`, igual que
+/// `claimUpdate` en el poller de Telegram. Sin este estado intermedio, dos
+/// pasadas del poller podrian reclamar la misma fila a la vez.
+enum EstadoSolicitudAyudante {
+  pendiente
+  en_proceso
+  hecho
+  fallo
+}
+
+/// La cola del Ayudante (userbot), en un solo sentido: **el bot encola, el
+/// ayudante sirve**. Nunca al reves.
+///
+/// Es la unica puerta de entrada al userbot desde el ciclo de updates. El
+/// nucleo de `apps/bot` no llama a MTProto ni conoce que existe una cuenta de
+/// usuario detras: escribe una fila aqui y sigue. Si el ayudante esta caido,
+/// con `FLOOD_WAIT` o sin sesion, la fila se queda `pendiente` y el ciclo de
+/// updates ni se entera — la misma propiedad que ya protege `TelegramPort` al
+/// no aceptar un `token`, aplicada aqui a un proceso entero.
+///
+/// `tipo` es texto y no enum a proposito, igual que `especie` en `Pet`: el
+/// catalogo de tipos de solicitud crece por bloques (mencion real, ficha
+/// completa, censo, aviso privado...) y un enum convertiria "un tipo nuevo" en
+/// "una migracion nueva".
+model AyudanteSolicitud {
+  id       String @id @default(cuid())
+  tenantId String
+
+  /// Que se pide. Ver `apps/ayudante/src/despachador.ts` para el catalogo
+  /// real de tipos que el ayudante sabe atender.
+  tipo String
+
+  /// Los datos de la solicitud. Forma libre porque cada `tipo` necesita algo
+  /// distinto: un chatId y un userId no es lo mismo que un texto a enviar.
+  payload Json
+
+  estado EstadoSolicitudAyudante @default(pendiente)
+
+  /// Cuantas veces se ha intentado. Sin tope aqui: cada tipo de solicitud
+  /// decide su propio limite al leerlo, porque no es lo mismo reintentar un
+  /// aviso privado que reintentar un censo completo.
+  intentos Int @default(0)
+
+  /// Lo que devolvio el ayudante al terminar. `null` mientras siga pendiente
+  /// o en proceso.
+  resultado Json?
+  /// El motivo del fallo, si `estado` es `fallo`. Nunca se reintenta un fallo
+  /// en silencio: queda escrito por que no se pudo.
+  error String?
+
+  creadaEn    DateTime  @default(now())
+  reclamadaEn DateTime?
+  resueltaEn  DateTime?
+
+  /// El reclamo del poller es un `updateMany` sobre filas `pendiente`
+  /// ordenadas por `creadaEn`: sin este indice seria un escaneo completo en
+  /// cada pasada.
+  @@index([estado, creadaEn])
+  @@map("ayudante_solicitudes")
+}
+
+/// Una foto del grupo tal y como lo ve el ayudante, no el bot.
+///
+/// El bot solo conoce a quien le ha escrito desde que entro; el userbot puede
+/// listar miembros de verdad (`channels.getParticipants`), que es la unica
+/// forma de ver a los fantasmas y a quien se fue sin mensaje de servicio. Cada
+/// censo nuevo actualiza `vistoEn` de quien sigue y marca `presente = false`
+/// en quien ya no aparece, sin borrar la fila: la salida silenciosa es un dato,
+/// no un olvido.
+model AyudanteCensoMiembro {
+  id             String @id @default(cuid())
+  tenantId       String
+  chatId         String
+  userTelegramId BigInt
+
+  alias  String?
+  nombre String?
+
+  /// Si el ultimo censo lo encontro todavia dentro del grupo.
+  presente Boolean @default(true)
+
+  /// La ultima vez que un censo lo vio en la lista de miembros.
+  vistoEn DateTime @default(now())
+  /// La ultima vez que el userbot pudo ver su estado de conexion
+  /// (`status.wasOnline`), si Telegram lo permite para esta cuenta. Es la base
+  /// de "quien esta en linea ahora" y del mapa de husos horarios; no todo el
+  /// mundo lo expone.
+  ultimaConexionEn DateTime?
+
+  creadaEn DateTime @default(now())
+
+  @@unique([tenantId, chatId, userTelegramId])
+  @@index([tenantId, chatId, presente])
+  @@map("ayudante_censo_miembros")
+}
+
+/// El historial de alias de alguien, dentro de un grupo.
+///
+/// Existe porque el bot solo ve un cambio de alias si la persona escribe
+/// despues de cambiarselo; el censo del ayudante lo ve aunque se quede callada,
+/// que es justo el caso de quien se cambia el nombre para escaquearse de una
+/// sancion.
+model AyudanteAliasHistorial {
+  id             String @id @default(cuid())
+  tenantId       String
+  chatId         String
+  userTelegramId BigInt
+
+  alias        String?
+  detectadoEn  DateTime @default(now())
+
+  @@index([tenantId, chatId, userTelegramId])
+  @@map("ayudante_alias_historial")
+}
+
+/// Un evento del registro de administracion nativo de Telegram
+/// (`channels.getAdminLog`), que la Bot API no expone en absoluto.
+///
+/// `telegramEventId` es el id que trae el propio evento de Telegram, y es la
+/// clave de idempotencia: sincronizar el mismo tramo de log dos veces no debe
+/// duplicar filas.
+///
+/// Quien lee esto importa tanto como lo que dice: la vista para el staff
+/// oculta `actorTelegramId` (ver `apps/ayudante/src/bloques/moderacion.ts`,
+/// `vistaStaff`), porque el registro de que moderador hizo que cosa es
+/// auditoria del propio staff, y esa es solo del propietario — la misma razon
+/// por la que `puedeModerar` y `puedeConfigurar` son preguntas distintas en
+/// `PermisosPort`.
+model AyudanteAdminLogEvento {
+  id       String @id @default(cuid())
+  tenantId String
+  chatId   String
+
+  telegramEventId String
+
+  accion              String
+  actorTelegramId     BigInt
+  objetivoTelegramId  BigInt?
+  detalle             Json?
+
+  ocurrioEn    DateTime
+  ingresadoEn  DateTime @default(now())
+
+  @@unique([tenantId, chatId, telegramEventId])
+  @@index([tenantId, chatId, ocurrioEn])
+  @@map("ayudante_admin_log_eventos")
+}
+
+/// Cuanta gente ha traido cada enlace de invitacion, segun Telegram
+/// (`messages.getExportedChatInvites` / `checkChatInvite`), no segun una
+/// cuenta a ojo.
+model AyudanteEnlaceInvitacion {
+  id       String @id @default(cuid())
+  tenantId String
+  chatId   String
+
+  /// El enlace en si (o su slug), tal y como lo devuelve Telegram.
+  enlaceId String
+
+  creadorTelegramId BigInt
+  /// Usos acumulados de por vida, tal y como los cuenta Telegram. Se
+  /// SOBRESCRIBE en cada sincronizacion, nunca se suma: sumar dos lecturas del
+  /// mismo contador lo duplicaria.
+  usosTotal         Int    @default(0)
+  /// Cuantos de esos usos ya se han pagado en comisiones.
+  ///
+  /// Sin esta columna la comision se calculaba sobre `usosTotal`, o sea sobre
+  /// la vida entera del enlace, y cada ejecucion del ranking volvia a pagar
+  /// todo lo ya pagado. Es la misma proteccion que el `refId` del libro mayor
+  /// da al rendimiento de las mascotas, en el unico otro sitio donde este
+  /// repo acuña moneda.
+  usosLiquidados    Int    @default(0)
+
+  sincronizadoEn DateTime @default(now())
+  creadoEn       DateTime @default(now())
+
+  @@unique([tenantId, chatId, enlaceId])
+  @@index([tenantId, chatId, creadorTelegramId])
+  @@map("ayudante_enlaces_invitacion")
+}
+
+/// Si un aviso por privado llego, y si se sabe por que no.
+///
+/// Es la pieza que arregla el problema escrito en el plan de mascotas: "mucha
+/// gente tiene el bot bloqueado y un aviso que no llega convierte la factura
+/// en una encerrona". Una cuenta de usuario puede escribir a alguien que nunca
+/// le ha hablado al bot; esta tabla es la prueba de si lo consiguio.
+enum EstadoAvisoPrivado {
+  pendiente
+  enviado
+  rebotado
+  bloqueado
+}
+
+model AyudanteAvisoPrivado {
+  id                     String @id @default(cuid())
+  tenantId               String
+  destinatarioTelegramId BigInt
+
+  /// Que tipo de aviso es: "sancion_expira", "verificacion_pendiente",
+  /// "mascota_enferma"... Ver cada bloque para su catalogo.
+  tipo String
+
+  estado EstadoAvisoPrivado @default(pendiente)
+
+  /// Los datos del aviso; no el texto final, que se compone al enviar.
+  detalle Json?
+
+  creadoEn  DateTime  @default(now())
+  enviadoEn DateTime?
+
+  @@index([tenantId, destinatarioTelegramId, tipo])
+  @@map("ayudante_avisos_privados")
+}
+
+/// Un hash del avatar de alguien, en el momento en que el ayudante lo vio.
+///
+/// Sirve para dos cosas con la misma tabla: el historial de avatares de una
+/// persona (varias filas con el mismo `telegramId`), y la deteccion de
+/// multicuenta (dos `telegramId` distintos con el mismo `hash`). No se guarda
+/// la foto, solo su huella.
+model AyudanteAvatarHash {
+  id         String @id @default(cuid())
+  telegramId BigInt
+  hash       String
+
+  detectadoEn DateTime @default(now())
+
+  @@unique([telegramId, hash])
+  /// Buscar coincidencias de hash entre distintas cuentas es la consulta
+  /// entera de la deteccion de multicuenta.
+  @@index([hash])
+  @@map("ayudante_avatar_hashes")
+}
+
+/// Una medicion del watchdog: el ayudante hace ping al bot desde fuera de su
+/// propio proceso, con una cuenta de usuario, y mide cuanto tarda en
+/// contestar. Es la unica metrica de salud que no depende del propio bot para
+/// existir.
+model AyudanteWatchdogMedicion {
+  id         String   @id @default(cuid())
+  medidoEn   DateTime @default(now())
+  latenciaMs Int?
+  ok         Boolean
+
+  @@index([medidoEn])
+  @@map("ayudante_watchdog_mediciones")
+}

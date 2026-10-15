@@ -1,0 +1,9 @@
+tests/
+models/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+README.md
+scripts/
